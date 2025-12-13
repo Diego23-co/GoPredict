@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{{ username }}'s Profile — GoPredict</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    /* Bottom bar for predicted/actual/status */
+    .match-bottom-bar {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.5rem 1rem;
+      font-size: 0.9rem;
+      color: #555;
+      border-top: 1px solid #eee;
+      font-family: 'Inter', sans-serif;
+    }
+    .match-bottom-bar .predicted,
+    .match-bottom-bar .actual {
+      font-weight: 500;
+    }
+    .match-bottom-bar .status {
+      font-weight: 700;
+      text-transform: uppercase;
+      text-align: center;
+      flex: 1;
+    }
+    .status.win { color: #28a745; }
+    .status.lose { color: #dc3545; }
+    .status.live { color: #ffc107; }
+    .status.upcoming { color: #6c757d; }
+    .match-card { display: flex; flex-direction: column; margin-bottom: 1rem; }
+    .match-row { display: flex; align-items: center; justify-content: space-between; padding: 1rem; }
+    .team { text-align: center; flex: 1; }
+    .team-logo { width: 64px; height: 64px; margin-bottom: 0.5rem; }
+    .vs-block { flex: 1; text-align: center; font-weight: 600; }
+    .vs-text { font-size: 1.2rem; margin-bottom: 0.5rem; }
+  </style>
+</head>
+<body class="bg">
+  <header class="nav">
+    <div class="nav-left">
+      <div class="logo">GoPredict</div>
+    </div>
+    <nav class="nav-right">
+      <a href="{{ url_for('index') }}" class="nav-link">Home</a>
+      <a href="{{ url_for('leaderboard') }}" class="nav-link">Leaderboard</a>
+      <a href="{{ url_for('settings') }}" class="nav-link">Settings</a>
+      <a href="{{ url_for('logout') }}" class="nav-link">Logout</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <section class="container narrow">
+      <h2>{{ username }}'s Profile</h2>
+
+      <div class="card stats">
+        <p><strong>Total Points:</strong> {{ stats.total_points }}</p>
+        <p><strong>Exact Scores:</strong> {{ stats.exact_scores }}</p>
+        <p><strong>Total Predictions:</strong> {{ stats.predictions_count }}</p>
+      </div>
+
+      <div class="section-head">
+        <h3>Your Predictions</h3>
+      </div>
+
+      <div class="vertical-list">
+        {% for match in user_matches %}
+          <div class="card match-card">
+            <div class="match-row">
+              <div class="team left">
+                <img class="team-logo" src="{{ match.home_logo }}" alt="{{ match.home }}">
+                <div class="team-name">{{ match.home }}</div>
+              </div>
+
+              <div class="vs-block">
+                <div class="vs-text">VS</div>
+                {% if match.home_score is not none %}
+                  <div style="font-size:1.1rem;">{{ match.home_score }} - {{ match.away_score }}</div>
+                {% endif %}
+              </div>
+
+              <div class="team right">
+                <img class="team-logo" src="{{ match.away_logo }}" alt="{{ match.away }}">
+                <div class="team-name">{{ match.away }}</div>
+              </div>
+            </div>
+
+            <!-- Bottom bar: predicted / status / actual -->
+            <div class="match-bottom-bar">
+              <div class="predicted">Predicted: {{ match.pred_home }} - {{ match.pred_away }}</div>
+              <div class="status 
+                {% if match.outcome == 'WIN' %}win{% elif match.outcome == 'LOSE' %}lose{% elif match.outcome == 'LIVE' %}live{% else %}upcoming{% endif %}">
+                {% if match.outcome == 'WIN' %}WIN
+                {% elif match.outcome == 'LOSE' %}LOSE
+                {% elif match.outcome == 'LIVE' %}LIVE
+                {% else %}&nbsp;{% endif %}
+              </div>
+              <div class="actual">
+                {% if match.home_score is not none %}
+                  Actual: {{ match.home_score }} - {{ match.away_score }}
+                {% else %}
+                  --:Actual
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div>© {{ 2025 }} GoPredict</div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Predict — {{ match['home'] }} vs {{ match['away'] }}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="bg">
+  <header class="nav">
+    <div class="nav-left">
+      <div class="logo">GoPredict</div>
+    </div>
+    <nav class="nav-right">
+      <a href="{{ url_for('index') }}" class="nav-link">Home</a>
+      <a href="{{ url_for('leaderboard') }}" class="nav-link">Leaderboard</a>
+      {% if session.get('username') %}
+        <span class="nav-link">Hi, {{ session['username'] }}</span>
+        <a href="{{ url_for('logout') }}" class="nav-link">Logout</a>
+      {% else %}
+        <a href="{{ url_for('login') }}" class="nav-link">Login</a>
+        <a href="{{ url_for('register') }}" class="nav-link">Register</a>
+      {% endif %}
+    </nav>
+  </header>
+
+  <main class="page">
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        {% for msg in messages %}
+          <div class="card notice">{{ msg }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <section class="container narrow">
+      <div class="match-head card">
+        <div class="match-head-row">
+          <div class="team">
+            <img class="team-logo big"
+                 src="{{ match.get('home_logo','https://via.placeholder.com/80') }}"
+                 alt="{{ match['home'] }}">
+            <div class="team-name big">{{ match['home'] }}</div>
+          </div>
+
+          <div class="vs-block big">
+            <div class="vs-text">VS</div>
+
+            <!-- ✅ FIXED: Use localDate (same as homepage) -->
+            <div class="match-time">
+              {% if match.get('localDate') %}
+                {{ match['localDate'][:10] }} · {{ match['localDate'][11:16] }}
+              {% else %}
+                TBA
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="team right">
+            <img class="team-logo big"
+                 src="{{ match.get('away_logo','https://via.placeholder.com/80') }}"
+                 alt="{{ match['away'] }}">
+            <div class="team-name big">{{ match['away'] }}</div>
+          </div>
+        </div>
+      </div>
+
+      {% if submitted %}
+      <div class="card notice">
+        ⚠️ You have already submitted a prediction for this match.
+      </div>
+      {% endif %}
+
+      {% if locked %}
+      <div class="card notice">
+        ⚠️ Predictions are locked. The match has already started.
+      </div>
+      {% endif %}
+
+      {% if not submitted and not locked %}
+      <div class="card notice">
+        🎁 Predict the correct score and stand a chance to win a mystery gift!
+      </div>
+
+      <form method="POST" class="card form-card">
+        <label class="field-label">Username</label>
+        <input required name="username"
+               value="{{ session['username'] }}"
+               readonly class="input">
+
+        <div class="score-grid">
+          <div>
+            <label class="field-label">{{ match['home'] }}</label>
+            <input required type="number" name="home_score"
+                   min="0" max="20" class="input small">
+          </div>
+          <div>
+            <label class="field-label">{{ match['away'] }}</label>
+            <input required type="number" name="away_score"
+                   min="0" max="20" class="input small">
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn primary">Submit Prediction</button>
+          <a href="{{ url_for('index') }}" class="btn ghost">Back</a>
+        </div>
+      </form>
+      {% endif %}
+
+      {% if not session.get('username') %}
+      <div class="card notice">
+        ⚠️ You must <a href="{{ url_for('login') }}">login</a> or
+        <a href="{{ url_for('register') }}">register</a> to submit a prediction.
+      </div>
+      {% endif %}
+    </section>
+  </main>
+
+  <footer class="footer small">
+    © 2025 GoPredict
+  </footer>
+</body>
+</html>

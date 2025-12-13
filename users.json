@@ -1,0 +1,20 @@
+{
+    "Ayo": {
+        "password": "scrypt:32768:8:1$bj3QwQR56B094osp$b5b259ff5a8e8e1859993453924924058a06f8ae818dd12e24829263015e44ad49ddffc4d9b640fe5297cdf28e61b9130326bf8bafcb504f484c43a8d61db371"
+    },
+    "Diego": {
+        "password": "scrypt:32768:8:1$SzvzMC1wLjpqmi3G$fed8ed08ec15c40b332f0295fa991d69fe6115209b2c0aaf51fec80ed891d57ec8430a2a1417f29a762aa204cf9dece2856d21494c1c92ed1494dec9ae7745cf"
+    },
+    "Thaa": {
+        "password": "scrypt:32768:8:1$gLVk56I7KnG8gD7G$3f14276183ad607f164077a3ba1e9bc595956779776cd338ed4e2006474d4f602203251dfe8dd6691dbddac96144f4bedc044eb750a3409a710d8fd1577466e3",
+        "email": "matomemashapu476@gmail.com"
+    },
+    "BIG": {
+        "password": "scrypt:32768:8:1$dpFMBMBX65us5rHs$fa428c2a8399e493556f4f3239142270a708be7e576e8a04e88250a9776fcd5b6b10d9e80b98dcd9ced39fab83d7e0d01ebe6676bca9797d039daed448e49b29",
+        "email": "big325@gmail.com"
+    },
+    "CR7": {
+        "password": "scrypt:32768:8:1$iy3KRRH94ZkoHhWq$3311b2ecdeff2ccabd219212802ede71fce06dc0be025abad296fd086e7a61e43973a28b37c3f2508a25f653ccc0cc7542d1767513d2133d5005b18c2cab09b6",
+        "email": "CR7@gmail.com"
+    }
+}

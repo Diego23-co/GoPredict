@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Settings — GoPredict</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="bg">
+
+<header class="nav">
+  <div class="nav-left"><div class="logo">GoPredict</div></div>
+  <nav class="nav-right">
+    <a href="{{ url_for('index') }}" class="nav-link">Home</a>
+    <a href="{{ url_for('leaderboard') }}" class="nav-link">Leaderboard</a>
+    <a href="{{ url_for('profile') }}" class="nav-link">Profile</a>
+    <a href="{{ url_for('settings') }}" class="nav-link active">Settings</a>
+    <span class="nav-link">Hi, {{ session['username'] }}</span>
+    <a href="{{ url_for('logout') }}" class="nav-link">Logout</a>
+  </nav>
+</header>
+
+<main class="page">
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      {% for msg in messages %}
+        <div class="card notice">{{ msg }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <section class="container narrow">
+    <h2>Manage Settings</h2>
+    <form method="POST" class="card form-card">
+      <label class="field-label">New Password</label>
+      <input required type="password" name="new_password" placeholder="Enter new password" class="input">
+
+      <label class="field-label">Confirm Password</label>
+      <input required type="password" name="confirm_password" placeholder="Confirm new password" class="input">
+
+      <div class="form-actions">
+        <button class="btn primary">Change Password</button>
+      </div>
+    </form>
+  </section>
+</main>
+
+<footer class="footer small">
+  © {{ (2025) }} GoPredict
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Leaderboard — GoPredict</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="bg">
+  <header class="nav">
+    <div class="nav-left">
+      <div class="logo">GoPredict</div>
+    </div>
+    <nav class="nav-right">
+      <a href="{{ url_for('index') }}" class="nav-link">Home</a>
+      <a href="{{ url_for('leaderboard') }}" class="nav-link active">Leaderboard</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <section class="container">
+      <div class="section-head">
+        <h2>Leaderboard</h2>
+        <div class="small-muted">Top predictors — points are updated after match results</div>
+      </div>
+
+      <!-- Reward Info -->
+      <div class="card notice">
+        🎯 Earn a reward when you reach <strong>1000 points</strong>! Keep predicting to claim your prize.
+      </div>
+
+      {% if leaderboard %}
+      <div class="leaderboard-wrap card">
+        <table class="leaderboard-table">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>User</th>
+              <th>Points</th>
+              <th>Reward</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for user in leaderboard %}
+            <tr>
+              <td class="rank">{{ loop.index }}</td>
+              <td class="user-col">{{ user.username }}</td>
+              <td class="points-col">{{ user.points }}</td>
+              <td class="reward-col">
+                {% if user.points >= 1000 %}
+                  🏆 Reward Achieved
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        <div class="card notice">No predictions yet — be the first to predict!</div>
+      {% endif %}
+    </section>
+  </main>
+
+  <footer class="footer small">
+    © {{ (2025) }} GoPredict
+  </footer>
+</body>
+</html>
