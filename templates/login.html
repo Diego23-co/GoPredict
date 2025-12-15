@@ -19,7 +19,7 @@
       <span class="nav-link">Hi, {{ session['username'] }}</span>
       <a href="{{ url_for('logout') }}" class="nav-link">Logout</a>
     {% else %}
-      <a href="{{ url_for('login') }}" class="nav-link">Login</a>
+      <a href="{{ url_for('login') }}" class="nav-link active">Login</a>
       <a href="{{ url_for('register') }}" class="nav-link">Register</a>
     {% endif %}
   </nav>
@@ -28,10 +28,23 @@
 <main class="page">
   <section class="container narrow">
     <h2>Login</h2>
-    {% if error %}<div class="card notice">{{ error }}</div>{% endif %}
+
+    {% if error %}
+      <div class="card notice">{{ error }}</div>
+
+      {% if reactivate_username %}
+        <div class="card notice">
+          <form method="POST" action="{{ url_for('reactivate') }}">
+            <input type="hidden" name="username" value="{{ reactivate_username }}">
+            <button class="btn primary">Reactivate Account</button>
+          </form>
+        </div>
+      {% endif %}
+    {% endif %}
+
     <form method="POST" class="card form-card">
-      <label class="field-label">Username or Email</label>
-      <input required name="login_id" placeholder="Enter username or email" class="input">
+      <label class="field-label">Email or Phone Number</label>
+      <input required name="login_id" placeholder="Enter email or phone number" class="input">
 
       <label class="field-label">Password</label>
       <input required type="password" name="password" placeholder="Enter password" class="input">
@@ -45,7 +58,7 @@
 </main>
 
 <footer class="footer small">
-  © {{ (2025) }} GoPredict
+  © 2025 GoPredict
 </footer>
 </body>
 </html>

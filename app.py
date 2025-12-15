@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 import json
 import os
 import requests
+import random
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo  # Timezone support
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -9,6 +10,9 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 app = Flask(__name__)
 app.secret_key = "supersecretkey"  # Change this in production
+
+# Temporary dictionary to store OTPs for testing
+otp_storage = {}
 
 # ---------- File paths ----------
 MATCHES_FILE = "matches.json"
@@ -126,26 +130,41 @@ def index():
 
     return render_template("index.html", matches=ordered_matches)
 
+import random
+from datetime import datetime, timedelta
+
 @app.route("/register", methods=["GET", "POST"])
 def register():
     error = None
     if request.method == "POST":
         username = request.form["username"].strip()
-        email = request.form["email"].strip()
+        contact = request.form["contact"].strip()  # Email or phone
         password = request.form["password"]
 
         users = load_users()
+
+        # Ensure username is unique
         if username in users:
             error = "Username already exists."
         else:
             hashed = generate_password_hash(password)
-            users[username] = {"password": hashed, "email": email}
+
+            # Detect email or phone number
+            if "@" in contact and "." in contact:
+                users[username] = {"password": hashed, "email": contact, "verified": False}
+            else:
+                users[username] = {"password": hashed, "phone": contact, "verified": False}
+
             save_users(users)
-            session["username"] = username
-            flash("✅ Registration successful! Logged in as " + username)
-            return redirect(url_for("index"))
+
+            # Store username in session temporarily for OTP verification
+            session["otp_user"] = username
+
+            flash("✅ Registration successful! Enter OTP to verify your account.")
+            return redirect(url_for("verify_otp"))
 
     return render_template("register.html", error=error)
+
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -157,20 +176,28 @@ def login():
         users = load_users()
         user = None
         username = None
+
+        # Check if login_id matches email or phone
         for u, info in users.items():
-            if login_id == u or login_id == info.get("email"):
+            if login_id == info.get("email") or login_id == info.get("phone"):
                 user = info
                 username = u
                 break
 
         if not user or not check_password_hash(user["password"], password):
-            error = "Invalid username/email or password."
+            error = "Invalid email or phone number or password."
+        elif not user.get("verified", False):
+            # Store username temporarily to verify OTP
+            session["otp_user"] = username
+            flash("⚠️ Account not verified. Enter OTP to verify.")
+            return redirect(url_for("verify_otp"))
         else:
             session["username"] = username
-            flash("✅ Logged in as " + username)
+            flash(f"✅ Logged in as {username}")
             return redirect(url_for("index"))
 
     return render_template("login.html", error=error)
+
 
 @app.route("/logout")
 def logout():
@@ -308,24 +335,144 @@ def settings():
     username = session["username"]
     users = load_users()
     user = users.get(username)
-    message = None
+
+    # Ensure bank object exists
+    if "bank" not in user:
+        user["bank"] = {
+            "account_holder": "",
+            "bank_name": "",
+            "account_number": "",
+            "branch_code": "",
+            "account_type": ""
+        }
 
     if request.method == "POST":
-        current_password = request.form["current_password"]
-        new_password = request.form["new_password"]
-        confirm_password = request.form["confirm_password"]
+        form_type = request.form.get("form_type")
 
-        if not check_password_hash(user["password"], current_password):
-            message = "❌ Current password is incorrect."
-        elif new_password != confirm_password:
-            message = "❌ New password and confirmation do not match."
+        # 🔐 PASSWORD UPDATE
+        if form_type == "password":
+            current_password = request.form["current_password"]
+            new_password = request.form["new_password"]
+            confirm_password = request.form["confirm_password"]
+
+            if not check_password_hash(user["password"], current_password):
+                flash("❌ Current password is incorrect.")
+            elif new_password != confirm_password:
+                flash("❌ New password and confirmation do not match.")
+            else:
+                user["password"] = generate_password_hash(new_password)
+                users[username] = user
+                save_users(users)
+                flash("✅ Password updated successfully!")
+
+        # 🏦 BANKING DETAILS UPDATE
+        elif form_type == "bank":
+            bank_holder = request.form.get("bank_holder", "").strip()
+            bank_name = request.form.get("bank_name", "").strip()
+            account_number = request.form.get("account_number", "").strip()
+            branch_code = request.form.get("branch_code", "").strip()
+            account_type = request.form.get("account_type", "").strip()
+
+            # Validate all fields are filled
+            if not all([bank_holder, bank_name, account_number, branch_code, account_type]):
+                flash("❌ Please complete all banking details before saving.")
+            else:
+                user["bank"]["account_holder"] = bank_holder
+                user["bank"]["bank_name"] = bank_name
+                user["bank"]["account_number"] = account_number
+                user["bank"]["branch_code"] = branch_code
+                user["bank"]["account_type"] = account_type
+
+                users[username] = user
+                save_users(users)
+                flash("🏦 Banking details saved successfully!")
+
+    return render_template("settings.html", user=user)
+
+@app.route("/deactivate_account", methods=["POST"])
+@login_required
+def deactivate_account():
+    username = session["username"]
+    users = load_users()
+    if username in users:
+        users[username]["active"] = False
+        save_users(users)
+        session.pop("username", None)
+        flash("⚠️ Your account has been deactivated.")
+    return redirect(url_for("login"))
+
+@app.route("/delete_account", methods=["POST"])
+@login_required
+def delete_account():
+    username = session["username"]
+    users = load_users()
+    if username in users:
+        users.pop(username)
+        save_users(users)
+        session.pop("username", None)
+        flash("🗑️ Your account has been permanently deleted.")
+    return redirect(url_for("register"))
+
+
+@app.route("/reactivate", methods=["GET", "POST"])
+def reactivate():
+    message = None
+    if request.method == "POST":
+        username = request.form["username"].strip()
+        users = load_users()
+        user = users.get(username)
+
+        if not user:
+            message = "❌ Username not found."
+        elif user.get("active", True):
+            message = "ℹ️ Account is already active."
         else:
-            user["password"] = generate_password_hash(new_password)
+            user["active"] = True
+            save_users(users)
+            flash("✅ Account reactivated! You can now log in.")
+            return redirect(url_for("login"))
+
+    return render_template("reactivate.html", message=message)
+
+@app.route("/verify_otp", methods=["GET", "POST"])
+def verify_otp():
+    if "otp_user" not in session:
+        flash("⚠️ No user to verify. Please register or login first.")
+        return redirect(url_for("register"))
+
+    username = session["otp_user"]
+    users = load_users()
+    user = users.get(username)
+    error = None
+
+    # Generate OTP if not already generated
+    if username not in otp_storage:
+        otp_storage[username] = str(random.randint(100000, 999999))
+        print(f"Generated OTP for {username}: {otp_storage[username]}")
+        # In real production, send via email/SMS
+        # For testing, we just print it in the console
+
+    if request.method == "POST":
+        entered_otp = request.form.get("otp").strip()
+        correct_otp = otp_storage.get(username)
+
+        if entered_otp == correct_otp:
+            user["verified"] = True
             users[username] = user
             save_users(users)
-            message = "✅ Password updated successfully!"
 
-    return render_template("settings.html", username=username, message=message)
+            # Remove OTP from storage
+            otp_storage.pop(username, None)
+            session.pop("otp_user", None)
+
+            # Auto-login after verification
+            session["username"] = username
+            flash("✅ Account verified successfully! Logged in.")
+            return redirect(url_for("index"))
+        else:
+            error = "❌ Incorrect OTP. Please try again."
+
+    return render_template("verify_otp.html", error=error)
 
 # ---------- Fetch matches ----------
 API_TOKEN = "6d6ce581dacf490db8f577c825c8b180"
@@ -418,3 +565,6 @@ scheduler.start()
 if __name__ == "__main__":
     fetch_matches()
     app.run(debug=True)
+
+
+#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

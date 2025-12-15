@@ -7,6 +7,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
+
 <body class="bg">
 
 <header class="nav">
@@ -22,33 +23,126 @@
 </header>
 
 <main class="page">
+
   {% with messages = get_flashed_messages() %}
-    {% if messages %}
-      {% for msg in messages %}
-        <div class="card notice">{{ msg }}</div>
-      {% endfor %}
-    {% endif %}
+    {% for msg in messages %}
+      <div class="card notice">{{ msg }}</div>
+    {% endfor %}
   {% endwith %}
 
+  <!-- 🔐 PASSWORD SECTION -->
   <section class="container narrow">
-    <h2>Manage Settings</h2>
+    <h2>Change Password</h2>
+
     <form method="POST" class="card form-card">
-      <label class="field-label">New Password</label>
-      <input required type="password" name="new_password" placeholder="Enter new password" class="input">
+      <input type="hidden" name="form_type" value="password">
 
-      <label class="field-label">Confirm Password</label>
-      <input required type="password" name="confirm_password" placeholder="Confirm new password" class="input">
+      <label>Current Password</label>
+      <input required type="password" name="current_password" class="input">
 
-      <div class="form-actions">
-        <button class="btn primary">Change Password</button>
-      </div>
+      <label>New Password</label>
+      <input required type="password" name="new_password" class="input">
+
+      <label>Confirm Password</label>
+      <input required type="password" name="confirm_password" class="input">
+
+      <button class="btn primary">Update Password</button>
     </form>
   </section>
+
+  <!-- 🏦 BANKING SECTION -->
+<section class="container narrow">
+  <h2>Banking Details</h2>
+
+  <form method="POST" class="card form-card">
+    <input type="hidden" name="form_type" value="bank">
+
+    <label>Account Holder Name</label>
+    <input class="input" name="bank_holder" value="{{ user.bank.account_holder }}" required>
+
+    <label class="field-label">Bank Name</label>
+    <select name="bank_name" id="bank_name" class="input" required onchange="setBranchCode()">
+      <option value="">Select your bank</option>
+      <option value="ABSA">ABSA</option>
+      <option value="Capitec">Capitec</option>
+      <option value="FNB">First National Bank (FNB)</option>
+      <option value="Nedbank">Nedbank</option>
+      <option value="Standard Bank">Standard Bank</option>
+      <option value="TymeBank">TymeBank</option>
+      <option value="Discovery">Discovery Bank</option>
+      <option value="Bank Zero">Bank Zero</option>
+    </select>
+
+    <label>Account Number</label>
+    <input class="input" name="account_number" value="{{ user.bank.account_number }}" required>
+
+    <label class="field-label">Branch Code</label>
+    <input type="text" name="branch_code" id="branch_code" class="input" readonly placeholder="Auto-filled" required>
+
+    <label>Account Type</label>
+    <select class="input" name="account_type" required>
+      <option value="">Select</option>
+      <option value="Cheque" {% if user.bank.account_type == "Cheque" %}selected{% endif %}>Cheque</option>
+      <option value="Savings" {% if user.bank.account_type == "Savings" %}selected{% endif %}>Savings</option>
+      <option value="Business" {% if user.bank.account_type == "Business" %}selected{% endif %}>Business</option>
+    </select>
+
+    <button class="btn primary">Save Banking Details</button>
+  </form>
+</section>
+
+
+  <!-- ⚠️ ACCOUNT ACTIONS SECTION -->
+  <section class="container narrow">
+    <h2>Account Actions</h2>
+    <div class="card form-card">
+      <p>If you want to deactivate or delete your account, please use the buttons below. <strong>Deleting</strong> is permanent.</p>
+
+      <form method="POST" action="{{ url_for('deactivate_account') }}" style="margin-bottom: 10px;">
+        <button class="btn warning" onclick="return confirm('Are you sure you want to deactivate your account?');">
+          Deactivate Account
+        </button>
+      </form>
+
+      <form method="POST" action="{{ url_for('delete_account') }}">
+        <button class="btn danger" onclick="return confirm('Are you sure you want to permanently delete your account?');">
+          Delete Account
+        </button>
+      </form>
+    </div>
+  </section>
+
 </main>
 
 <footer class="footer small">
-  © {{ (2025) }} GoPredict
+  © 2025 GoPredict
 </footer>
+
+<script>
+function setBranchCode() {
+  const bankCodes = {
+    "ABSA": "632005",
+    "Capitec": "470010",
+    "FNB": "250655",
+    "Nedbank": "198765",
+    "Standard Bank": "051001",
+    "TymeBank": "678910",
+    "Discovery": "679000",
+    "Bank Zero": "888000"
+  };
+
+  const bankSelect = document.getElementById("bank_name");
+  const branchInput = document.getElementById("branch_code");
+
+  const selectedBank = bankSelect.value;
+  branchInput.value = bankCodes[selectedBank] || "";
+}
+
+/* Auto-fill branch code on page load */
+window.addEventListener("DOMContentLoaded", () => {
+  setBranchCode();
+});
+</script>
 
 </body>
 </html>

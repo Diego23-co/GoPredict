@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Register — GoPredict</title>
+  <title>Verify OTP — GoPredict</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
@@ -20,28 +20,24 @@
       <a href="{{ url_for('logout') }}" class="nav-link">Logout</a>
     {% else %}
       <a href="{{ url_for('login') }}" class="nav-link">Login</a>
-      <a href="{{ url_for('register') }}" class="nav-link active">Register</a>
+      <a href="{{ url_for('register') }}" class="nav-link">Register</a>
     {% endif %}
   </nav>
 </header>
 
 <main class="page">
   <section class="container narrow">
-    <h2>Register</h2>
-    {% if error %}<div class="card notice">{{ error }}</div>{% endif %}
+    <h2>Enter OTP</h2>
+    {% if error %}
+      <div class="card notice">{{ error }}</div>
+    {% endif %}
+
     <form method="POST" class="card form-card">
-      <label class="field-label">Username</label>
-      <input required name="username" placeholder="Enter username" class="input">
-
-      <label class="field-label">Email or Phone Number</label>
-      <input required name="contact" placeholder="Email or phone number" class="input">
-
-      <label class="field-label">Password</label>
-      <input required type="password" name="password" placeholder="Enter password" class="input">
+      <label class="field-label">OTP</label>
+      <input required name="otp" placeholder="Enter the OTP sent to you" class="input">
 
       <div class="form-actions">
-        <button class="btn primary">Register</button>
-        <a href="{{ url_for('login') }}" class="btn ghost">Login</a>
+        <button class="btn primary">Verify</button>
       </div>
     </form>
   </section>

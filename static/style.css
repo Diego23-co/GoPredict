@@ -265,3 +265,13 @@ body.bg{
     gap: 0.5rem;
   }
 }
+
+select.input {
+  background-color: #0f172a;   /* same as your dark inputs */
+  color: #e5e7eb;
+}
+
+select.input option {
+  background-color: #0f172a;
+  color: #e5e7eb;
+}

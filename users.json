@@ -1,20 +1,50 @@
 {
     "Ayo": {
-        "password": "scrypt:32768:8:1$bj3QwQR56B094osp$b5b259ff5a8e8e1859993453924924058a06f8ae818dd12e24829263015e44ad49ddffc4d9b640fe5297cdf28e61b9130326bf8bafcb504f484c43a8d61db371"
+        "password": "scrypt:32768:8:1$bj3QwQR56B094osp$b5b259ff5a8e8e1859993453924924058a06f8ae818dd12e24829263015e44ad49ddffc4d9b640fe5297cdf28e61b9130326bf8bafcb504f484c43a8d61db371",
+        "email": "ayo@example.com",
+        "phone": "",
+        "verified": true
     },
     "Diego": {
-        "password": "scrypt:32768:8:1$SzvzMC1wLjpqmi3G$fed8ed08ec15c40b332f0295fa991d69fe6115209b2c0aaf51fec80ed891d57ec8430a2a1417f29a762aa204cf9dece2856d21494c1c92ed1494dec9ae7745cf"
+        "password": "scrypt:32768:8:1$SzvzMC1wLjpqmi3G$fed8ed08ec15c40b332f0295fa991d69fe6115209b2c0aaf51fec80ed891d57ec8430a2a1417f29a762aa204cf9dece2856d21494c1c92ed1494dec9ae7745cf",
+        "email": "",
+        "phone": "27821234567",
+        "verified": false,
+        "bank": {
+            "account_holder": "",
+            "bank_name": "TymeBank",
+            "account_number": "",
+            "branch_code": "678910",
+            "account_type": "Savings"
+        }
     },
-    "Thaa": {
-        "password": "scrypt:32768:8:1$gLVk56I7KnG8gD7G$3f14276183ad607f164077a3ba1e9bc595956779776cd338ed4e2006474d4f602203251dfe8dd6691dbddac96144f4bedc044eb750a3409a710d8fd1577466e3",
-        "email": "matomemashapu476@gmail.com"
+    "LIL": {
+        "password": "scrypt:32768:8:1$wIkbIQu8BGTerTPg$cebd46ea94ca47405620d31c97bb0231373c33b7d92e47882ad23d5405ee3161749816d479892b8e818a53bb60b12659222e8d7ad6a0af06b279987a602c2f0e",
+        "email": "lilnigga@gmail.com",
+        "phone": "",
+        "verified": false,
+        "otp": "734393",
+        "otp_expiry": "2025-12-15T20:48:06.759866"
     },
-    "BIG": {
-        "password": "scrypt:32768:8:1$dpFMBMBX65us5rHs$fa428c2a8399e493556f4f3239142270a708be7e576e8a04e88250a9776fcd5b6b10d9e80b98dcd9ced39fab83d7e0d01ebe6676bca9797d039daed448e49b29",
-        "email": "big325@gmail.com"
+    "One": {
+        "password": "scrypt:32768:8:1$U256px3NBCDm2ziU$2343b7e1c945051325ef507ec580fec70733ec824bc73f5edc2ae77bd8ab9f0291fe969526af94a134040f29b6e629825a85e95f752edde4316ea7a21d05b7e8",
+        "email": "One1@gmail.com",
+        "phone": "",
+        "verified": true
     },
-    "CR7": {
-        "password": "scrypt:32768:8:1$iy3KRRH94ZkoHhWq$3311b2ecdeff2ccabd219212802ede71fce06dc0be025abad296fd086e7a61e43973a28b37c3f2508a25f653ccc0cc7542d1767513d2133d5005b18c2cab09b6",
-        "email": "CR7@gmail.com"
+    "Lee": {
+        "password": "scrypt:32768:8:1$lbEDnQGnjr5CT6Zu$4bc2f128296a9d1f8aeb3f5f713bcf49abfad81e6fb8fb270f535b85d8d21b5b7006d793c5dc009937d0d77eb84f4b2680c6ee3cda7d3e5844aec1a1bd7561d9",
+        "email": "lee@gmail.com",
+        "verified": false
+    },
+    "Sam": {
+        "password": "scrypt:32768:8:1$ZQlJzmoqtNv3D8M4$732d57d5a55d27621ea01793afb736066bdbb8e6aa3d61e7f2284e0f50e97923a723900741aedbc3fc905fa6a036415f2149a11a6d472d231d1eb56b017dfbce",
+        "phone": "087546123",
+        "verified": false
+    },
+    "P": {
+        "password": "scrypt:32768:8:1$2cTR6RpFjpyqtA8x$366bb1f8d9e34627121772b5937df549d393e614d7ecfc487f5b2b76a0378e40a588833e887b0a50a99fa997924db7e61a12e6b4d0d8c14aa1b7cbdd09f525b2",
+        "email": "P23@gmail.com",
+        "verified": true
     }
 }
