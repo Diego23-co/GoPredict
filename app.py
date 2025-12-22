@@ -7,6 +7,11 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo  # Timezone support
 from werkzeug.security import generate_password_hash, check_password_hash
 from apscheduler.schedulers.background import BackgroundScheduler
+from dotenv import load_dotenv
+import os
+
+load_dotenv()  # Load environment variables from .env
+
 
 app = Flask(__name__)
 app.secret_key = "supersecretkey"  # Change this in production
@@ -592,7 +597,7 @@ def reset_password():
 
 
 # ---------- Fetch matches ----------
-API_TOKEN = "6d6ce581dacf490db8f577c825c8b180"
+API_TOKEN = os.getenv("FOOTBALL_API_KEY")
 
 def fetch_matches():
     headers = {"X-Auth-Token": API_TOKEN}
