@@ -14,6 +14,9 @@ app.secret_key = "supersecretkey"  # Change this in production
 # Temporary dictionary to store OTPs for testing
 otp_storage = {}
 
+def generate_otp():
+    return str(random.randint(100000, 999999))
+
 # ---------- File paths ----------
 MATCHES_FILE = "matches.json"
 PREDICTIONS_FILE = "predictions.json"
@@ -26,7 +29,8 @@ LEAGUES = [
     (2014, "La Liga"),          # Spain
     (2019, "Serie A"),          # Italy
     (2002, "Bundesliga"),       # Germany
-    (2015, "Ligue 1")           # France
+    (2015, "Ligue 1"),          # France
+    (1140, "AFCON")             # Africa Cup of Nations
 ]
 
 # ---------- Local timezone ----------
@@ -103,32 +107,43 @@ def index():
     predictions = load_predictions()
     today = datetime.now(ZoneInfo(LOCAL_TZ)).date()
 
-    # Keep only today's matches
     today_matches = []
+
     for i, match in enumerate(matches):
-        match_dt = datetime.fromisoformat(match["utcDate"].replace("Z", "+00:00")).astimezone(ZoneInfo(LOCAL_TZ))
-        if match_dt.date() == today:
-            match["predictions_count"] = sum(1 for user in predictions.values() if str(i) in user)
+        match_dt = datetime.fromisoformat(
+            match["utcDate"].replace("Z", "+00:00")
+        ).astimezone(ZoneInfo(LOCAL_TZ))
+
+        status = match.get("status", "UPCOMING")
+
+        # Only today's matches or live matches
+        if match_dt.date() == today or status in ["IN_PLAY", "PAUSED"]:
+            match["predictions_count"] = sum(
+                1 for user in predictions.values() if str(i) in user
+            )
             match["localDate"] = match_dt.isoformat()
-            match["global_index"] = i  # <-- Add global index
+            match["global_index"] = i
+
+            # 🔒 Lock if live (user cannot predict)
+            match["locked"] = status in ["IN_PLAY", "PAUSED"]
+
             today_matches.append(match)
 
-    # Group matches by league
+    # Group by league
     leagues_dict = {}
     for match in today_matches:
         league_name = match.get("league_name", "Other")
-        if league_name not in leagues_dict:
-            leagues_dict[league_name] = []
-        leagues_dict[league_name].append(match)
+        leagues_dict.setdefault(league_name, []).append(match)
 
-    # Sort leagues according to desired order
-    league_order = ["Premier League", "La Liga", "Serie A", "Bundesliga", "Ligue 1"]
+    # Sort leagues
+    league_order = ["Premier League", "La Liga", "Serie A", "Bundesliga", "Ligue 1", "AFCON"]
     ordered_matches = []
     for league in league_order:
         if league in leagues_dict:
             ordered_matches.extend(leagues_dict[league])
 
     return render_template("index.html", matches=ordered_matches)
+
 
 import random
 from datetime import datetime, timedelta
@@ -206,8 +221,8 @@ def logout():
         flash(f"👋 Logged out {username}")
     return redirect(url_for("login"))
 
-@app.route("/match/<int:match_id>", methods=["GET", "POST"])
 @login_required
+@app.route("/match/<int:match_id>", methods=["GET", "POST"])
 def match(match_id):
     matches = load_matches()
     if match_id >= len(matches):
@@ -219,7 +234,16 @@ def match(match_id):
 
     submitted = str(match_id) in predictions.get(username, {})
 
+    # 🔒 Prevent predicting live matches
+    match_dt = datetime.fromisoformat(match["utcDate"].replace("Z", "+00:00")).astimezone(ZoneInfo(LOCAL_TZ))
+    status = match.get("status", "UPCOMING")
+    locked = status in ["IN_PLAY", "PAUSED"]
+
     if request.method == "POST":
+        if locked:
+            flash("⚠️ You cannot predict a match that is currently live.")
+            return redirect(url_for("index"))
+
         if submitted:
             flash("⚠️ You already submitted a prediction for this match.")
             return redirect(url_for("match", match_id=match_id))
@@ -233,20 +257,15 @@ def match(match_id):
         # Count today's predictions
         today_predictions_count = 0
         for match_key, pred in predictions[username].items():
-
-            # New predictions (with stored date)
             if pred.get("date") == today.isoformat():
                 today_predictions_count += 1
                 continue
-
-            # Backward compatibility (old predictions)
             try:
                 idx = int(match_key)
-                match_dt = datetime.fromisoformat(
+                match_dt2 = datetime.fromisoformat(
                     matches[idx]["utcDate"].replace("Z", "+00:00")
                 ).astimezone(ZoneInfo(LOCAL_TZ))
-
-                if match_dt.date() == today:
+                if match_dt2.date() == today:
                     today_predictions_count += 1
             except:
                 pass
@@ -268,8 +287,7 @@ def match(match_id):
         flash("✅ Prediction submitted successfully!")
         return redirect(url_for("index"))
 
-    return render_template("match.html", match=match, submitted=submitted)
-
+    return render_template("match.html", match=match, submitted=submitted, locked=locked)
 
 
 @app.route("/leaderboard")
@@ -290,36 +308,49 @@ def profile():
     exact_scores = 0
     user_matches = []
 
+    # Ensure every match has a status
+    for match in matches:
+        if match.get("home_score") is not None and match.get("away_score") is not None:
+            match["status"] = "FT"
+        elif "status" not in match or match.get("status") is None:
+            match["status"] = "UPCOMING"
+
+    # Loop through matches with user predictions
     for i, match in enumerate(matches):
         pred = user_preds.get(str(i))
-        if pred:
-            points = 0
-            outcome = "UPCOMING"  # default
-            if match.get("home_score") is not None and match.get("away_score") is not None:
-                if pred["home"] == match["home_score"] and pred["away"] == match["away_score"]:
-                    points = 5
-                    outcome = "WIN"
-                else:
-                    outcome = "LOSE"
-            elif match.get("status") == "LIVE":
-                outcome = "LIVE"
+        if not pred:
+            continue  # Skip matches the user didn't predict
 
-            total_points += points
+        points = 0
+        status = match.get("status", "UPCOMING")
+        outcome = "UPCOMING"  # default outcome
 
-            user_matches.append({
-                "home": match["home"],
-                "away": match["away"],
-                "home_logo": match.get("home_logo", "https://via.placeholder.com/64"),
-                "away_logo": match.get("away_logo", "https://via.placeholder.com/64"),
-                "pred_home": pred["home"],
-                "pred_away": pred["away"],
-                "home_score": match.get("home_score"),
-                "away_score": match.get("away_score"),
-                "points": points,
-                "outcome": outcome
-            })
+        if status == "FT":
+            if pred["home"] == match["home_score"] and pred["away"] == match["away_score"]:
+                points = 5
+                outcome = "WIN"
+            else:
+                outcome = "LOSE"
+        elif status == "LIVE":
+            outcome = "LIVE"
+        else:
+            outcome = "UPCOMING"
+            match["status"] = "UPCOMING"  # make sure match itself has status
 
+        total_points += points
 
+        user_matches.append({
+            "home": match["home"],
+            "away": match["away"],
+            "home_logo": match.get("home_logo", "https://via.placeholder.com/64"),
+            "away_logo": match.get("away_logo", "https://via.placeholder.com/64"),
+            "pred_home": pred["home"],
+            "pred_away": pred["away"],
+            "home_score": match.get("home_score"),
+            "away_score": match.get("away_score"),
+            "points": points,
+            "outcome": outcome
+        })
 
     stats = {
         "total_points": total_points,
@@ -474,13 +505,107 @@ def verify_otp():
 
     return render_template("verify_otp.html", error=error)
 
+@app.route("/forgot_password", methods=["GET", "POST"])
+def forgot_password():
+    error = None
+
+    if request.method == "POST":
+        contact = request.form["contact"].strip()
+        users = load_users()
+
+        for username, info in users.items():
+            if contact == info.get("email") or contact == info.get("phone"):
+                otp = generate_otp()
+
+                # Save OTP temporarily
+                info["reset_otp"] = otp
+                users[username] = info
+                save_users(users)
+
+                session["reset_user"] = username
+
+                # 🔥 OTP ONLY IN TERMINAL
+                print(f"\n🔐 PASSWORD RESET OTP for {username}: {otp}\n")
+
+                return redirect(url_for("reset_verify_otp"))
+
+        error = "Account not found."
+
+    return render_template("forgot_password.html", error=error)
+
+@app.route("/reset_verify_otp", methods=["GET", "POST"])
+def reset_verify_otp():
+    error = None
+    username = session.get("reset_user")
+
+    if not username:
+        return redirect(url_for("login"))
+
+    users = load_users()
+    user = users.get(username)
+
+    if request.method == "POST":
+        entered_otp = request.form["otp"].strip()
+
+        if entered_otp != user.get("reset_otp"):
+            error = "Invalid OTP."
+        else:
+            user.pop("reset_otp", None)
+            users[username] = user
+            save_users(users)
+
+            session["reset_verified"] = True
+            return redirect(url_for("reset_password"))
+
+    return render_template("reset_verify_otp.html", error=error)
+
+@app.route("/reset-password", methods=["GET", "POST"])
+def reset_password():
+    if not session.get("reset_verified"):
+        return redirect(url_for("login"))
+
+    username = session.get("reset_user")
+    users = load_users()
+    user = users.get(username)
+    error = None
+
+    if request.method == "POST":
+        password = request.form["password"]
+        confirm = request.form["confirm"]
+
+        if password != confirm:
+            error = "Passwords do not match."
+        else:
+            user["password"] = generate_password_hash(password)
+            user.pop("reset_otp", None)
+
+            users[username] = user
+            save_users(users)
+
+            session.pop("reset_user", None)
+            session.pop("reset_verified", None)
+
+            flash("✅ Password reset successful. You can log in now.")
+            return redirect(url_for("login"))
+
+    return render_template("reset_password.html", error=error)
+
+
 # ---------- Fetch matches ----------
 API_TOKEN = "6d6ce581dacf490db8f577c825c8b180"
 
 def fetch_matches():
-    all_matches = []
     headers = {"X-Auth-Token": API_TOKEN}
     today = datetime.now(ZoneInfo(LOCAL_TZ)).date()
+
+    # Load existing matches
+    if os.path.exists(MATCHES_FILE):
+        with open(MATCHES_FILE, "r") as f:
+            all_matches = json.load(f)
+    else:
+        all_matches = []
+
+    existing_keys = {(m["home"], m["away"], m["utcDate"]) for m in all_matches}
 
     for league_id, league_name in LEAGUES:
         url = f"https://api.football-data.org/v4/competitions/{league_id}/matches?status=SCHEDULED"
@@ -493,15 +618,23 @@ def fetch_matches():
         for match in data.get("matches", []):
             match_dt = datetime.fromisoformat(match["utcDate"].replace("Z", "+00:00")).astimezone(ZoneInfo(LOCAL_TZ))
             match_date = match_dt.date()
-            if match_date == today: 
+
+            # Only today’s matches
+            if match_date == today:
                 home_team = match["homeTeam"]
                 away_team = match["awayTeam"]
+
+                key = (home_team["name"], away_team["name"], match["utcDate"])
+                if key in existing_keys:
+                    continue  # Skip if already in matches.json
+
                 all_matches.append({
                     "home": home_team["name"],
                     "away": away_team["name"],
                     "utcDate": match["utcDate"],
                     "home_score": None,
                     "away_score": None,
+                    "status": "UPCOMING",
                     "localDate": match_dt.isoformat(),
                     "home_logo": home_team.get("crest", "https://via.placeholder.com/64"),
                     "away_logo": away_team.get("crest", "https://via.placeholder.com/64"),
@@ -510,7 +643,7 @@ def fetch_matches():
 
     with open(MATCHES_FILE, "w") as f:
         json.dump(all_matches, f, indent=4)
-    print(f"{len(all_matches)} upcoming matches saved to {MATCHES_FILE}")
+    print(f"✅ Matches fetched and updated: {len(all_matches)}")
     return all_matches
 
 # ---------- Auto-update matches ----------
@@ -550,6 +683,101 @@ def update_match_results():
 
     print("✅ Match results updated automatically (including live matches).")
 
+def save_matches(matches):
+    with open(MATCHES_FILE, "w") as f:
+        json.dump(matches, f, indent=4)
+
+def update_scores(matches):
+    headers = {"X-Auth-Token": API_TOKEN}
+    today = datetime.now(ZoneInfo(LOCAL_TZ)).date()
+
+    print("🔄 Updating live & finished scores...")
+
+    url = "https://api.football-data.org/v4/matches"
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+        print(f"⚠️ Failed to fetch matches: {response.status_code}")
+        return
+
+    data = response.json()
+
+    # Build a lookup dictionary from API data for faster matching
+    api_matches = {}
+    for m in data.get("matches", []):
+        key = (m["homeTeam"]["name"].strip(), m["awayTeam"]["name"].strip(), m["utcDate"])
+        api_matches[key] = m
+
+    for match in matches:
+        match_dt = datetime.fromisoformat(match["utcDate"].replace("Z", "+00:00")).astimezone(ZoneInfo(LOCAL_TZ))
+        if match_dt.date() != today:
+            continue  # Only update today’s matches
+
+        key = (match["home"].strip(), match["away"].strip(), match["utcDate"])
+        api_match = api_matches.get(key)
+        if not api_match:
+            continue  # No match found in API
+
+        status = api_match.get("status", "UPCOMING")
+        match["status"] = status
+
+        score = api_match.get("score", {})
+        if status == "LIVE":
+            match["home_score"] = score.get("live", {}).get("home")
+            match["away_score"] = score.get("live", {}).get("away")
+        elif status == "FINISHED":
+            match["home_score"] = score.get("fullTime", {}).get("home")
+            match["away_score"] = score.get("fullTime", {}).get("away")
+
+        print(f"✅ {match['home']} vs {match['away']} → {status}, "
+              f"scores: {match['home_score']}-{match['away_score']}")
+
+    save_matches(matches)
+
+
+def update_live_scores(matches):
+    headers = {"X-Auth-Token": API_TOKEN}
+    url = "https://api.football-data.org/v4/matches"
+
+    print("🔄 Updating live & finished scores...")
+
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+        print(f"⚠️ Failed to fetch matches: {response.status_code}")
+        return
+
+    api_matches = response.json().get("matches", [])
+
+    for match in matches:
+        for api_match in api_matches:
+            if (
+                api_match["homeTeam"]["name"] == match["home"]
+                and api_match["awayTeam"]["name"] == match["away"]
+            ):
+                status = api_match["status"]
+                match["status"] = status
+
+                score = api_match.get("score", {})
+
+                # 🔴 LIVE MATCH
+                if status in ["IN_PLAY", "PAUSED"]:
+                    rt = score.get("regularTime", {})
+                    match["home_score"] = rt.get("home")
+                    match["away_score"] = rt.get("away")
+
+                # ✅ FINISHED MATCH
+                elif status == "FINISHED":
+                    ft = score.get("fullTime", {})
+                    match["home_score"] = ft.get("home")
+                    match["away_score"] = ft.get("away")
+
+                print(
+                    f"✅ {match['home']} vs {match['away']} → {status}, "
+                    f"scores: {match.get('home_score')}-{match.get('away_score')}"
+                )
+                break
+
+    save_matches(matches)
+
 # ---------- Auto-reset leaderboard ----------
 def reset_leaderboard():
     save_predictions({})
@@ -557,14 +785,17 @@ def reset_leaderboard():
 
 # ---------- Scheduler ----------
 scheduler = BackgroundScheduler()
-scheduler.add_job(update_match_results, 'interval', minutes=5)
+scheduler.add_job(lambda: update_scores(load_matches()), 'interval', minutes=5)
+scheduler.add_job(fetch_matches, 'interval', minutes=10)         # fetch new today matches every 10 min
 scheduler.add_job(reset_leaderboard, 'cron', day_of_week='mon', hour=0)
 scheduler.start()
 
+# ---------- Fetch today matches immediately at startup ----------
+fetch_matches()  # ensures homepage has data on app start
+
+
 # ---------- Run ----------
 if __name__ == "__main__":
-    fetch_matches()
     app.run(debug=True)
 
 
-#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

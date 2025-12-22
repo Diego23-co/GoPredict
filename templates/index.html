@@ -79,7 +79,7 @@
           <h3 class="league-title">{{ league }}</h3>
           <div class="vertical-list">
             {% for match in league_matches %}
-            <a href="{{ url_for('match', match_id=match.global_index) }}" class="card match-card">
+            <a href="{% if match.status != 'LIVE' %}{{ url_for('match', match_id=match.global_index) }}{% else %}#{% endif %}" class="card match-card {% if match.status == 'LIVE' %}live-match{% endif %}">
               <div class="match-row">
                 <div class="team left">
                   <img class="team-logo" src="{{ match.get('home_logo', 'https://via.placeholder.com/64') }}" alt="{{ match['home'] }}">
@@ -110,7 +110,11 @@
               <div class="card-footer">
                 <div class="pred-count">{{ match.get('predictions_count', 0) }} Predictions</div>
                 {% if session.get('username') %}
-                  <div class="cta">Predict Now →</div>
+                  {% if match.status == 'LIVE' %}
+                    <div class="cta small-muted">Live – Predictions Closed</div>
+                  {% else %}
+                    <div class="cta">Predict Now →</div>
+                  {% endif %}
                 {% else %}
                   <div class="cta small-muted">Login to Predict</div>
                 {% endif %}
@@ -132,4 +136,4 @@
 </footer>
 
 </body>
-</html>  index html 
+</html>

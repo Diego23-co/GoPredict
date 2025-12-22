@@ -96,7 +96,7 @@
                 {% if match.outcome == 'WIN' %}WIN
                 {% elif match.outcome == 'LOSE' %}LOSE
                 {% elif match.outcome == 'LIVE' %}LIVE
-                {% else %}&nbsp;{% endif %}
+                {% else %}UPCOMING{% endif %}
               </div>
               <div class="actual">
                 {% if match.home_score is not none %}

@@ -46,5 +46,10 @@
         "password": "scrypt:32768:8:1$2cTR6RpFjpyqtA8x$366bb1f8d9e34627121772b5937df549d393e614d7ecfc487f5b2b76a0378e40a588833e887b0a50a99fa997924db7e61a12e6b4d0d8c14aa1b7cbdd09f525b2",
         "email": "P23@gmail.com",
         "verified": true
+    },
+    "Kamo": {
+        "password": "scrypt:32768:8:1$VQH5PEzgNoS2jTxD$0726fb974d52f9a84a81e7bfad86db914eabb494b874b89c336a5e6205dd67d288ff812caf3fb49a831df95558d4366bac7518d89636d2ce3f10d228a5ffa464",
+        "email": "Kamo23@gmail.com",
+        "verified": true
     }
 }
