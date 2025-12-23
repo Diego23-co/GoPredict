@@ -34,8 +34,7 @@ LEAGUES = [
     (2014, "La Liga"),          # Spain
     (2019, "Serie A"),          # Italy
     (2002, "Bundesliga"),       # Germany
-    (2015, "Ligue 1"),          # France
-    (1140, "AFCON")             # Africa Cup of Nations
+    (2015, "Ligue 1")          # France
 ]
 
 # ---------- Local timezone ----------
@@ -110,7 +109,8 @@ def calculate_points():
 def index():
     matches = load_matches()
     predictions = load_predictions()
-    today = datetime.now(ZoneInfo(LOCAL_TZ)).date()
+    now = datetime.now(ZoneInfo(LOCAL_TZ))
+    today = now.date()
 
     today_matches = []
 
@@ -119,29 +119,43 @@ def index():
             match["utcDate"].replace("Z", "+00:00")
         ).astimezone(ZoneInfo(LOCAL_TZ))
 
-        status = match.get("status", "UPCOMING")
+        status = match.get("status", "TIMED")
 
-        # Only today's matches or live matches
-        if match_dt.date() == today or status in ["IN_PLAY", "PAUSED"]:
+        is_today = match_dt.date() == today
+        is_live = status in ["IN_PLAY", "PAUSED"]
+        is_finished = status in ["FT", "FINISHED", "AWARDED"]
+
+        # ❌ NEVER show yesterday or finished matches
+        if match_dt.date() < today or is_finished:
+            continue
+
+        # ✅ Show only today matches or live matches
+        if is_today or is_live:
             match["predictions_count"] = sum(
                 1 for user in predictions.values() if str(i) in user
             )
             match["localDate"] = match_dt.isoformat()
             match["global_index"] = i
 
-            # 🔒 Lock if live (user cannot predict)
-            match["locked"] = status in ["IN_PLAY", "PAUSED"]
+            # 🔒 Lock if live
+            match["locked"] = is_live
 
             today_matches.append(match)
 
     # Group by league
     leagues_dict = {}
     for match in today_matches:
-        league_name = match.get("league_name", "Other")
-        leagues_dict.setdefault(league_name, []).append(match)
+        league = match.get("league_name", "Other")
+        leagues_dict.setdefault(league, []).append(match)
 
-    # Sort leagues
-    league_order = ["Premier League", "La Liga", "Serie A", "Bundesliga", "Ligue 1", "AFCON"]
+    league_order = [
+        "Premier League",
+        "La Liga",
+        "Serie A",
+        "Bundesliga",
+        "Ligue 1",
+    ]
+
     ordered_matches = []
     for league in league_order:
         if league in leagues_dict:
