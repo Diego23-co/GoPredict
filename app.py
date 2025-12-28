@@ -153,7 +153,7 @@ def index():
         "La Liga",
         "Serie A",
         "Bundesliga",
-        "Ligue 1",
+        "Ligue 1"
     ]
 
     ordered_matches = []
@@ -315,46 +315,78 @@ def leaderboard():
     leaderboard_data = calculate_points()
     return render_template("leaderboard.html", leaderboard=leaderboard_data)
 
+from datetime import datetime, timezone
+
 @app.route("/profile")
 @login_required
 def profile():
     username = session["username"]
     matches = load_matches()
+
+    # Filter out specific matches manually
+    matches = [
+        m for m in matches
+        if not (
+            (m["home"] == "Fulham FC" and m["away"] == "Nottingham Forest FC") or
+            (m["home"] == "Athletic Club" and m["away"] == "RCD Espanyol de Barcelona")
+        )
+    ]
+    
+    # 🔄 FORCE score refresh BEFORE using data
+    update_scores(matches)
+
     predictions = load_predictions()
     user_preds = predictions.get(username, {})
+
+    today = datetime.now(timezone.utc).date()
+
+    filtered_matches = []
+    for match in matches:
+        # parse match date safely
+        match_date = datetime.fromisoformat(
+            match["utcDate"].replace("Z", "+00:00")
+        ).date()
+
+        # keep upcoming, live, or finished today only
+        if match.get("status") != "FINISHED" or match_date == today:
+            filtered_matches.append(match)
+
+    matches = filtered_matches
 
     total_points = 0
     exact_scores = 0
     user_matches = []
 
-    # Ensure every match has a status
-    for match in matches:
-        if match.get("home_score") is not None and match.get("away_score") is not None:
-            match["status"] = "FT"
-        elif "status" not in match or match.get("status") is None:
-            match["status"] = "UPCOMING"
-
-    # Loop through matches with user predictions
     for i, match in enumerate(matches):
         pred = user_preds.get(str(i))
         if not pred:
-            continue  # Skip matches the user didn't predict
+            continue
+
+        status = match.get("status", "SCHEDULED")
+        home_score = match.get("home_score")
+        away_score = match.get("away_score")
 
         points = 0
-        status = match.get("status", "UPCOMING")
-        outcome = "UPCOMING"  # default outcome
+        outcome = "UPCOMING"
 
-        if status == "FT":
-            if pred["home"] == match["home_score"] and pred["away"] == match["away_score"]:
-                points = 5
-                outcome = "WIN"
-            else:
-                outcome = "LOSE"
-        elif status == "LIVE":
+        # 🔴 LIVE MATCH
+        if status in ["IN_PLAY", "PAUSED"]:
             outcome = "LIVE"
+
+        # ✅ FINISHED MATCH
+        elif status == "FINISHED":
+            if home_score is not None and away_score is not None:
+                if pred["home"] == home_score and pred["away"] == away_score:
+                    points = 5
+                    exact_scores += 1
+                    outcome = "WIN"
+                else:
+                    outcome = "LOSE"
+
+        # 🕒 UPCOMING
         else:
             outcome = "UPCOMING"
-            match["status"] = "UPCOMING"  # make sure match itself has status
+
 
         total_points += points
 
@@ -365,8 +397,8 @@ def profile():
             "away_logo": match.get("away_logo", "https://via.placeholder.com/64"),
             "pred_home": pred["home"],
             "pred_away": pred["away"],
-            "home_score": match.get("home_score"),
-            "away_score": match.get("away_score"),
+            "home_score": home_score,
+            "away_score": away_score,
             "points": points,
             "outcome": outcome
         })
@@ -377,7 +409,14 @@ def profile():
         "predictions_count": len(user_matches)
     }
 
-    return render_template("profile.html", username=username, stats=stats, user_matches=user_matches)
+    #print(match["home"], match["away"], home_score, away_score, status)
+
+    return render_template(
+        "profile.html",
+        username=username,
+        stats=stats,
+        user_matches=user_matches
+    )
 
 @app.route("/settings", methods=["GET", "POST"])
 @login_required
@@ -708,9 +747,7 @@ def save_matches(matches):
 
 def update_scores(matches):
     headers = {"X-Auth-Token": API_TOKEN}
-    today = datetime.now(ZoneInfo(LOCAL_TZ)).date()
-
-    print("🔄 Updating live & finished scores...")
+    print("🔄 Updating all live & finished scores...")
 
     url = "https://api.football-data.org/v4/matches"
     response = requests.get(url, headers=headers)
@@ -718,34 +755,41 @@ def update_scores(matches):
         print(f"⚠️ Failed to fetch matches: {response.status_code}")
         return
 
-    data = response.json()
-
-    # Build a lookup dictionary from API data for faster matching
-    api_matches = {}
-    for m in data.get("matches", []):
-        key = (m["homeTeam"]["name"].strip(), m["awayTeam"]["name"].strip(), m["utcDate"])
-        api_matches[key] = m
+    data = response.json().get("matches", [])
 
     for match in matches:
-        match_dt = datetime.fromisoformat(match["utcDate"].replace("Z", "+00:00")).astimezone(ZoneInfo(LOCAL_TZ))
-        if match_dt.date() != today:
-            continue  # Only update today’s matches
+        match_dt = datetime.fromisoformat(match["utcDate"].replace("Z", "+00:00"))
+        api_match = None
 
-        key = (match["home"].strip(), match["away"].strip(), match["utcDate"])
-        api_match = api_matches.get(key)
+        # Find API match by home/away teams and date (ignore exact time)
+        for m in data:
+            api_dt = datetime.fromisoformat(m["utcDate"].replace("Z", "+00:00"))
+            if (
+                m["homeTeam"]["name"].strip() == match["home"].strip()
+                and m["awayTeam"]["name"].strip() == match["away"].strip()
+                and api_dt.date() == match_dt.date()
+            ):
+                api_match = m
+                break
+
         if not api_match:
-            continue  # No match found in API
+            continue
 
         status = api_match.get("status", "UPCOMING")
         match["status"] = status
-
         score = api_match.get("score", {})
-        if status == "LIVE":
-            match["home_score"] = score.get("live", {}).get("home")
-            match["away_score"] = score.get("live", {}).get("away")
+
+        if status in ["IN_PLAY", "PAUSED"]:
+            rt = score.get("regularTime", {})
+            match["home_score"] = rt.get("home")
+            match["away_score"] = rt.get("away")
         elif status == "FINISHED":
-            match["home_score"] = score.get("fullTime", {}).get("home")
-            match["away_score"] = score.get("fullTime", {}).get("away")
+            ft = score.get("fullTime", {})
+            match["home_score"] = ft.get("home")
+            match["away_score"] = ft.get("away")
+        else:  # UPCOMING
+            match["home_score"] = None
+            match["away_score"] = None
 
         print(f"✅ {match['home']} vs {match['away']} → {status}, "
               f"scores: {match['home_score']}-{match['away_score']}")
@@ -755,10 +799,9 @@ def update_scores(matches):
 
 def update_live_scores(matches):
     headers = {"X-Auth-Token": API_TOKEN}
-    url = "https://api.football-data.org/v4/matches"
-
     print("🔄 Updating live & finished scores...")
 
+    url = "https://api.football-data.org/v4/matches"
     response = requests.get(url, headers=headers)
     if response.status_code != 200:
         print(f"⚠️ Failed to fetch matches: {response.status_code}")
@@ -767,35 +810,44 @@ def update_live_scores(matches):
     api_matches = response.json().get("matches", [])
 
     for match in matches:
-        for api_match in api_matches:
+        match_dt = datetime.fromisoformat(match["utcDate"].replace("Z", "+00:00"))
+        api_match = None
+
+        # Match by teams and date
+        for m in api_matches:
+            api_dt = datetime.fromisoformat(m["utcDate"].replace("Z", "+00:00"))
             if (
-                api_match["homeTeam"]["name"] == match["home"]
-                and api_match["awayTeam"]["name"] == match["away"]
+                m["homeTeam"]["name"].strip() == match["home"].strip()
+                and m["awayTeam"]["name"].strip() == match["away"].strip()
+                and api_dt.date() == match_dt.date()
             ):
-                status = api_match["status"]
-                match["status"] = status
-
-                score = api_match.get("score", {})
-
-                # 🔴 LIVE MATCH
-                if status in ["IN_PLAY", "PAUSED"]:
-                    rt = score.get("regularTime", {})
-                    match["home_score"] = rt.get("home")
-                    match["away_score"] = rt.get("away")
-
-                # ✅ FINISHED MATCH
-                elif status == "FINISHED":
-                    ft = score.get("fullTime", {})
-                    match["home_score"] = ft.get("home")
-                    match["away_score"] = ft.get("away")
-
-                print(
-                    f"✅ {match['home']} vs {match['away']} → {status}, "
-                    f"scores: {match.get('home_score')}-{match.get('away_score')}"
-                )
+                api_match = m
                 break
 
+        if not api_match:
+            continue
+
+        status = api_match.get("status", "UPCOMING")
+        match["status"] = status
+        score = api_match.get("score", {})
+
+        if status in ["IN_PLAY", "PAUSED"]:
+            rt = score.get("regularTime", {})
+            match["home_score"] = rt.get("home")
+            match["away_score"] = rt.get("away")
+        elif status == "FINISHED":
+            ft = score.get("fullTime", {})
+            match["home_score"] = ft.get("home")
+            match["away_score"] = ft.get("away")
+        else:  # UPCOMING
+            match["home_score"] = None
+            match["away_score"] = None
+
+        print(f"✅ {match['home']} vs {match['away']} → {status}, "
+              f"scores: {match.get('home_score')}-{match.get('away_score')}")
+
     save_matches(matches)
+
 
 # ---------- Auto-reset leaderboard ----------
 def reset_leaderboard():
