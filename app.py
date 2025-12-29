@@ -240,8 +240,8 @@ def logout():
         flash(f"👋 Logged out {username}")
     return redirect(url_for("login"))
 
-@login_required
 @app.route("/match/<int:match_id>", methods=["GET", "POST"])
+@login_required
 def match(match_id):
     matches = load_matches()
     if match_id >= len(matches):
