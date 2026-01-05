@@ -18,10 +18,10 @@
     <a href="{{ url_for('index') }}" class="nav-link {% if request.endpoint == 'index' %}active{% endif %}">Home</a>
     <a href="{{ url_for('leaderboard') }}" class="nav-link {% if request.endpoint == 'leaderboard' %}active{% endif %}">Leaderboard</a>
 
-    {% if session.get('username') %}
+    {% if current_user.is_authenticated %}
       <a href="{{ url_for('profile') }}" class="nav-link {% if request.endpoint == 'profile' %}active{% endif %}">Profile</a>
       <a href="{{ url_for('settings') }}" class="nav-link {% if request.endpoint == 'settings' %}active{% endif %}">Settings</a>
-      <span class="nav-link">Hi, {{ session['username'] }}</span>
+      <span class="nav-link">Hi, {{ current_user.username }}</span>
       <a href="{{ url_for('logout') }}" class="nav-link">Logout</a>
     {% else %}
       <a href="{{ url_for('login') }}" class="nav-link">Login</a>
@@ -39,10 +39,10 @@
     {% endif %}
   {% endwith %}
 
-  {% if session.get('username') %}
-  <div class="small-muted card notice">
-      Logged in as <strong>{{ session['username'] }}</strong>
-  </div>
+  {% if current_user.is_authenticated %}
+    <div class="small-muted card notice">
+      Logged in as <strong>{{ current_user.username }}</strong>
+    </div>
   {% endif %}
 
   <section class="hero">
@@ -53,11 +53,11 @@
   </section>
 
   <section class="container">
-      {% if not session.get('username') %}
+    {% if not current_user.is_authenticated %}
       <div class="card notice">
-          🔒 Log in to view the leaderboard and see your ranking!
+        🔒 Log in to view the leaderboard and see your ranking!
       </div>
-      {% endif %}
+    {% endif %}
 
     <div class="section-head">
       <h2>Upcoming Matches</h2>
@@ -79,47 +79,41 @@
           <h3 class="league-title">{{ league }}</h3>
           <div class="vertical-list">
             {% for match in league_matches %}
-            <a href="{% if match.status != 'LIVE' %}{{ url_for('match', match_id=match.global_index) }}{% else %}#{% endif %}" class="card match-card {% if match.status == 'LIVE' %}live-match{% endif %}">
-              <div class="match-row">
-                <div class="team left">
-                  <img class="team-logo" src="{{ match.get('home_logo', 'https://via.placeholder.com/64') }}" alt="{{ match['home'] }}">
-                  <div class="team-name">{{ match['home'] }}</div>
-                </div>
+              <a href="{% if match.status != 'LIVE' %}{{ url_for('match', match_id=match.global_index) }}{% else %}#{% endif %}"
+                 class="card match-card {% if match.status == 'LIVE' %}live-match{% endif %}">
 
-                <div class="vs-block">
-                  <div class="vs-text">VS</div>
-                  {% if match.get('home_score') is not none and match.get('away_score') is not none %}
-                    <div class="score">{{ match['home_score'] }} - {{ match['away_score'] }}</div>
-                  {% else %}
+                <div class="match-row">
+                  <div class="team left">
+                    <img class="team-logo" src="{{ match.get('home_logo', 'https://via.placeholder.com/64') }}">
+                    <div class="team-name">{{ match['home'] }}</div>
+                  </div>
+
+                  <div class="vs-block">
+                    <div class="vs-text">VS</div>
                     <div class="match-time">
-                      {% if match.get('localDate') %}
-                        {{ match['localDate'][:10] }} · {{ match['localDate'][11:16] }}
-                      {% else %}
-                        TBA
-                      {% endif %}
+                      {{ match['localDate'][:10] }} · {{ match['localDate'][11:16] }}
                     </div>
-                  {% endif %}
+                  </div>
+
+                  <div class="team right">
+                    <img class="team-logo" src="{{ match.get('away_logo', 'https://via.placeholder.com/64') }}">
+                    <div class="team-name">{{ match['away'] }}</div>
+                  </div>
                 </div>
 
-                <div class="team right">
-                  <img class="team-logo" src="{{ match.get('away_logo', 'https://via.placeholder.com/64') }}" alt="{{ match['away'] }}">
-                  <div class="team-name">{{ match['away'] }}</div>
-                </div>
-              </div>
-
-              <div class="card-footer">
-                <div class="pred-count">{{ match.get('predictions_count', 0) }} Predictions</div>
-                {% if session.get('username') %}
-                  {% if match.status == 'LIVE' %}
-                    <div class="cta small-muted">Live – Predictions Closed</div>
+                <div class="card-footer">
+                  <div class="pred-count">{{ match.get('predictions_count', 0) }} Predictions</div>
+                  {% if current_user.is_authenticated %}
+                    {% if match.status == 'LIVE' %}
+                      <div class="cta small-muted">Live – Predictions Closed</div>
+                    {% else %}
+                      <div class="cta">Predict Now →</div>
+                    {% endif %}
                   {% else %}
-                    <div class="cta">Predict Now →</div>
+                    <div class="cta small-muted">Login to Predict</div>
                   {% endif %}
-                {% else %}
-                  <div class="cta small-muted">Login to Predict</div>
-                {% endif %}
-              </div>
-            </a>
+                </div>
+              </a>
             {% endfor %}
           </div>
         </div>
@@ -131,7 +125,7 @@
 </main>
 
 <footer class="footer">
-  <div>© {{ (2025) }} GoPredict — Built with ⚽</div>
+  <div>© 2025 GoPredict — Built with ⚽</div>
   <div class="small-muted">Made with ❤️ for football fans</div>
 </footer>
 

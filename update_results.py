@@ -2,8 +2,13 @@ import requests
 import json
 from zoneinfo import ZoneInfo
 from datetime import datetime
+import os
+from dotenv import load_dotenv
 
-API_TOKEN = "6d6ce581dacf490db8f577c825c8b180"
+load_dotenv()
+
+
+API_TOKEN = os.getenv("FOOTBALL_API_KEY")
 MATCHES_FILE = "matches.json"
 
 def update_matches():

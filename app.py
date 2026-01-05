@@ -1,20 +1,71 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash
-import json
+# =========================
+# Standard library imports
+# =========================
 import os
-import requests
+import json
 import random
-from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo  # Timezone support
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+# =========================
+# Third-party libraries
+# =========================
+import requests
+from flask import (
+    Flask,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    session,
+    flash
+)
 from werkzeug.security import generate_password_hash, check_password_hash
 from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
-import os
+from flask_migrate import Migrate
+
+# Flask-Login
+from flask_login import (
+    LoginManager,
+    login_user,
+    logout_user,
+    login_required,
+    current_user
+)
+
+# =========================
+# Local application imports
+# =========================
+from extensions import db, migrate
+from models import User, Match, Prediction
+
+
 
 load_dotenv()  # Load environment variables from .env
 
 
 app = Flask(__name__)
+
+basedir = os.path.abspath(os.path.dirname(__file__))
+
+app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{os.path.join(basedir, 'app.db')}"
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+# Initialize extensions
+db.init_app(app)
+migrate.init_app(app, db)
+
 app.secret_key = "supersecretkey"  # Change this in production
+
+login_manager = LoginManager()
+login_manager.login_view = "login"  # redirect users to this if not logged in
+login_manager.init_app(app)
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
 
 # Temporary dictionary to store OTPs for testing
 otp_storage = {}
@@ -57,26 +108,8 @@ def save_predictions(predictions):
     with open(PREDICTIONS_FILE, "w") as f:
         json.dump(predictions, f, indent=4)
 
-def load_users():
-    if os.path.exists(USERS_FILE):
-        with open(USERS_FILE, "r") as f:
-            return json.load(f)
-    return {}
-
-def save_users(users):
-    with open(USERS_FILE, "w") as f:
-        json.dump(users, f, indent=4)
-
 # ---------- Authentication decorator ----------
-def login_required(func):
-    from functools import wraps
-    @wraps(func)
-    def wrapped(*args, **kwargs):
-        if "username" not in session:
-            flash("🔒 You need to login first!")
-            return redirect(url_for("login"))
-        return func(*args, **kwargs)
-    return wrapped
+
 
 # ---------- Calculate points ----------
 def calculate_points():
@@ -86,20 +119,29 @@ def calculate_points():
 
     for username, user_preds in predictions.items():
         total_points = 0
+
         for match_id_str, pred in user_preds.items():
             match_id = int(match_id_str)
+
             if match_id >= len(matches):
                 continue
+
             actual = matches[match_id]
+
             if actual["home_score"] is None or actual["away_score"] is None:
                 continue
 
             # Exact score = 5 points
-            if pred["home"] == actual["home_score"] and pred["away"] == actual["away_score"]:
+            if (
+                pred["home"] == actual["home_score"]
+                and pred["away"] == actual["away_score"]
+            ):
                 total_points += 5
 
-        badge = "🏆" if total_points >= 1000 else ""
-        leaderboard.append({"username": username, "points": total_points, "badge": badge})
+        leaderboard.append({
+            "username": username,
+            "points": total_points
+        })
 
     leaderboard.sort(key=lambda x: x["points"], reverse=True)
     return leaderboard
@@ -163,82 +205,92 @@ def index():
 
     return render_template("index.html", matches=ordered_matches)
 
-
-import random
-from datetime import datetime, timedelta
-
 @app.route("/register", methods=["GET", "POST"])
 def register():
     error = None
+
     if request.method == "POST":
         username = request.form["username"].strip()
-        contact = request.form["contact"].strip()  # Email or phone
+        contact = request.form["contact"].strip()
         password = request.form["password"]
 
-        users = load_users()
-
-        # Ensure username is unique
-        if username in users:
+        # Username uniqueness
+        if User.query.filter_by(username=username).first():
             error = "Username already exists."
+
         else:
-            hashed = generate_password_hash(password)
+            # Decide email vs phone
+            email = contact if "@" in contact and "." in contact else None
+            phone = None if email else contact
 
-            # Detect email or phone number
-            if "@" in contact and "." in contact:
-                users[username] = {"password": hashed, "email": contact, "verified": False}
+            # Email / phone uniqueness
+            if email and User.query.filter_by(email=email).first():
+                error = "Email already registered."
+            elif phone and User.query.filter_by(phone=phone).first():
+                error = "Phone number already registered."
             else:
-                users[username] = {"password": hashed, "phone": contact, "verified": False}
+                hashed = generate_password_hash(password)
 
-            save_users(users)
+                user = User(
+                    username=username,
+                    password_hash=hashed,
+                    email=email,
+                    phone=phone,
+                    verified=False
+                )
 
-            # Store username in session temporarily for OTP verification
-            session["otp_user"] = username
+                db.session.add(user)
+                db.session.commit()
 
-            flash("✅ Registration successful! Enter OTP to verify your account.")
-            return redirect(url_for("verify_otp"))
+                session["otp_user"] = username
+                flash("✅ Registration successful! Enter OTP to verify your account.")
+                return redirect(url_for("verify_otp"))
 
     return render_template("register.html", error=error)
+
+@app.route("/debug")
+def debug():
+    return f"Authenticated: {current_user.is_authenticated}"
 
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
     error = None
+
     if request.method == "POST":
         login_id = request.form["login_id"].strip()
         password = request.form["password"]
 
-        users = load_users()
-        user = None
-        username = None
+        user = User.query.filter(
+            (User.email == login_id) | (User.phone == login_id)
+        ).first()
 
-        # Check if login_id matches email or phone
-        for u, info in users.items():
-            if login_id == info.get("email") or login_id == info.get("phone"):
-                user = info
-                username = u
-                break
-
-        if not user or not check_password_hash(user["password"], password):
-            error = "Invalid email or phone number or password."
-        elif not user.get("verified", False):
-            # Store username temporarily to verify OTP
-            session["otp_user"] = username
+        if not user or not check_password_hash(user.password_hash, password):
+            error = "Invalid email/phone or password."
+        elif not user.verified:
+            session["otp_user"] = user.username
             flash("⚠️ Account not verified. Enter OTP to verify.")
             return redirect(url_for("verify_otp"))
+        elif not user.active:
+            flash("⚠️ This account is deactivated. Reactivate first.")
+            return redirect(url_for("reactivate"))
         else:
-            session["username"] = username
-            flash(f"✅ Logged in as {username}")
+            login_user(user)
+            print("LOGGED IN:", current_user.is_authenticated)
+            flash(f"✅ Logged in as {user.username}")
             return redirect(url_for("index"))
 
     return render_template("login.html", error=error)
 
 
+
 @app.route("/logout")
+@login_required
 def logout():
-    username = session.pop("username", None)
-    if username:
-        flash(f"👋 Logged out {username}")
+    logout_user()
+    flash("👋 Logged out successfully")
     return redirect(url_for("login"))
+
 
 @app.route("/match/<int:match_id>", methods=["GET", "POST"])
 @login_required
@@ -249,7 +301,7 @@ def match(match_id):
 
     match = matches[match_id]
     predictions = load_predictions()
-    username = session["username"]
+    username = current_user.username
 
     submitted = str(match_id) in predictions.get(username, {})
 
@@ -315,93 +367,59 @@ def leaderboard():
     leaderboard_data = calculate_points()
     return render_template("leaderboard.html", leaderboard=leaderboard_data)
 
-from datetime import datetime, timezone
-
 @app.route("/profile")
 @login_required
 def profile():
-    username = session["username"]
-    matches = load_matches()
-
-    # Filter out specific matches manually
-    matches = [
-        m for m in matches
-        if not (
-            (m["home"] == "Fulham FC" and m["away"] == "Nottingham Forest FC") or
-            (m["home"] == "Athletic Club" and m["away"] == "RCD Espanyol de Barcelona")
-        )
-    ]
+    user = current_user  # ✅ Use Flask-Login
     
-    # 🔄 FORCE score refresh BEFORE using data
-    update_scores(matches)
-
-    predictions = load_predictions()
-    user_preds = predictions.get(username, {})
+    # Get all predictions for this user
+    db_predictions = Prediction.query.filter_by(user_id=user.id).all()
 
     today = datetime.now(timezone.utc).date()
 
-    filtered_matches = []
-    for match in matches:
-        # parse match date safely
-        match_date = datetime.fromisoformat(
-            match["utcDate"].replace("Z", "+00:00")
-        ).date()
-
-        # keep upcoming, live, or finished today only
-        if match.get("status") != "FINISHED" or match_date == today:
-            filtered_matches.append(match)
-
-    matches = filtered_matches
-
+    user_matches = []
     total_points = 0
     exact_scores = 0
-    user_matches = []
 
-    for i, match in enumerate(matches):
-        pred = user_preds.get(str(i))
-        if not pred:
+    for pred in db_predictions:
+        match = Match.query.get(pred.match_id)
+        if not match:
             continue
 
-        status = match.get("status", "SCHEDULED")
-        home_score = match.get("home_score")
-        away_score = match.get("away_score")
+        # parse match date safely
+        match_date = match.utc_date.date() if match.utc_date else None
 
-        points = 0
-        outcome = "UPCOMING"
-
-        # 🔴 LIVE MATCH
-        if status in ["IN_PLAY", "PAUSED"]:
-            outcome = "LIVE"
-
-        # ✅ FINISHED MATCH
-        elif status == "FINISHED":
-            if home_score is not None and away_score is not None:
-                if pred["home"] == home_score and pred["away"] == away_score:
-                    points = 5
-                    exact_scores += 1
-                    outcome = "WIN"
-                else:
-                    outcome = "LOSE"
-
-        # 🕒 UPCOMING
-        else:
+        # Only include upcoming/live/today finished matches
+        if match.status != "FINISHED" or match_date == today:
+            points = 0
             outcome = "UPCOMING"
 
+            if match.status in ["IN_PLAY", "PAUSED"]:
+                outcome = "LIVE"
 
-        total_points += points
+            elif match.status == "FINISHED":
+                if match.home_score is not None and match.away_score is not None:
+                    if pred.pred_home == match.home_score and pred.pred_away == match.away_score:
+                        points = 5
+                        exact_scores += 1
+                        outcome = "WIN"
+                    else:
+                        outcome = "LOSE"
 
-        user_matches.append({
-            "home": match["home"],
-            "away": match["away"],
-            "home_logo": match.get("home_logo", "https://via.placeholder.com/64"),
-            "away_logo": match.get("away_logo", "https://via.placeholder.com/64"),
-            "pred_home": pred["home"],
-            "pred_away": pred["away"],
-            "home_score": home_score,
-            "away_score": away_score,
-            "points": points,
-            "outcome": outcome
-        })
+            total_points += points
+
+            user_matches.append({
+                "home": match.home,
+                "away": match.away,
+                "home_logo": match.home_logo,
+                "away_logo": match.away_logo,
+                "pred_home": pred.pred_home,
+                "pred_away": pred.pred_away,
+                "home_score": match.home_score,
+                "away_score": match.away_score,
+                "points": points,
+                "outcome": outcome
+            })
 
     stats = {
         "total_points": total_points,
@@ -409,11 +427,9 @@ def profile():
         "predictions_count": len(user_matches)
     }
 
-    #print(match["home"], match["away"], home_score, away_score, status)
-
     return render_template(
         "profile.html",
-        username=username,
+        username=user.username,
         stats=stats,
         user_matches=user_matches
     )
@@ -421,13 +437,17 @@ def profile():
 @app.route("/settings", methods=["GET", "POST"])
 @login_required
 def settings():
-    username = session["username"]
-    users = load_users()
-    user = users.get(username)
+    username = current_user.username
+    user = User.query.filter_by(username=username).first()
 
-    # Ensure bank object exists
-    if "bank" not in user:
-        user["bank"] = {
+    if not user:
+        flash("User not found.")
+        return redirect(url_for("login"))
+
+    # Ensure bank attribute exists (we can store as JSON or separate columns)
+    if not hasattr(user, "bank") or not user.bank:
+        # Using a dict attribute on user (if your model supports JSON)
+        user.bank = {
             "account_holder": "",
             "bank_name": "",
             "account_number": "",
@@ -444,14 +464,13 @@ def settings():
             new_password = request.form["new_password"]
             confirm_password = request.form["confirm_password"]
 
-            if not check_password_hash(user["password"], current_password):
+            if not check_password_hash(user.password_hash, current_password):
                 flash("❌ Current password is incorrect.")
             elif new_password != confirm_password:
                 flash("❌ New password and confirmation do not match.")
             else:
-                user["password"] = generate_password_hash(new_password)
-                users[username] = user
-                save_users(users)
+                user.password_hash = generate_password_hash(new_password)
+                db.session.commit()
                 flash("✅ Password updated successfully!")
 
         # 🏦 BANKING DETAILS UPDATE
@@ -462,18 +481,18 @@ def settings():
             branch_code = request.form.get("branch_code", "").strip()
             account_type = request.form.get("account_type", "").strip()
 
-            # Validate all fields are filled
             if not all([bank_holder, bank_name, account_number, branch_code, account_type]):
                 flash("❌ Please complete all banking details before saving.")
             else:
-                user["bank"]["account_holder"] = bank_holder
-                user["bank"]["bank_name"] = bank_name
-                user["bank"]["account_number"] = account_number
-                user["bank"]["branch_code"] = branch_code
-                user["bank"]["account_type"] = account_type
-
-                users[username] = user
-                save_users(users)
+                # Update bank info
+                user.bank = {
+                    "account_holder": bank_holder,
+                    "bank_name": bank_name,
+                    "account_number": account_number,
+                    "branch_code": branch_code,
+                    "account_type": account_type
+                }
+                db.session.commit()
                 flash("🏦 Banking details saved successfully!")
 
     return render_template("settings.html", user=user)
@@ -481,47 +500,57 @@ def settings():
 @app.route("/deactivate_account", methods=["POST"])
 @login_required
 def deactivate_account():
-    username = session["username"]
-    users = load_users()
-    if username in users:
-        users[username]["active"] = False
-        save_users(users)
+    username = current_user.username
+
+    user = User.query.filter_by(username=username).first()
+
+    if user:
+        user.active = False
+        db.session.commit()
+
         session.pop("username", None)
         flash("⚠️ Your account has been deactivated.")
+
     return redirect(url_for("login"))
 
 @app.route("/delete_account", methods=["POST"])
 @login_required
 def delete_account():
-    username = session["username"]
-    users = load_users()
-    if username in users:
-        users.pop(username)
-        save_users(users)
+    username = current_user.username
+
+    user = User.query.filter_by(username=username).first()
+
+    if user:
+        db.session.delete(user)
+        db.session.commit()
+
         session.pop("username", None)
         flash("🗑️ Your account has been permanently deleted.")
-    return redirect(url_for("register"))
 
+    return redirect(url_for("register"))
 
 @app.route("/reactivate", methods=["GET", "POST"])
 def reactivate():
     message = None
+
     if request.method == "POST":
         username = request.form["username"].strip()
-        users = load_users()
-        user = users.get(username)
+
+        user = User.query.filter_by(username=username).first()
 
         if not user:
             message = "❌ Username not found."
-        elif user.get("active", True):
+        elif user.active:
             message = "ℹ️ Account is already active."
         else:
-            user["active"] = True
-            save_users(users)
+            user.active = True
+            db.session.commit()
+
             flash("✅ Account reactivated! You can now log in.")
             return redirect(url_for("login"))
 
     return render_template("reactivate.html", message=message)
+
 
 @app.route("/verify_otp", methods=["GET", "POST"])
 def verify_otp():
@@ -530,32 +559,33 @@ def verify_otp():
         return redirect(url_for("register"))
 
     username = session["otp_user"]
-    users = load_users()
-    user = users.get(username)
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        flash("⚠️ User not found. Please register first.")
+        return redirect(url_for("register"))
+
     error = None
 
     # Generate OTP if not already generated
     if username not in otp_storage:
         otp_storage[username] = str(random.randint(100000, 999999))
         print(f"Generated OTP for {username}: {otp_storage[username]}")
-        # In real production, send via email/SMS
-        # For testing, we just print it in the console
+        # In production, send via email/SMS
 
     if request.method == "POST":
         entered_otp = request.form.get("otp").strip()
         correct_otp = otp_storage.get(username)
 
         if entered_otp == correct_otp:
-            user["verified"] = True
-            users[username] = user
-            save_users(users)
+            user.verified = True
+            db.session.commit()  # Save changes to the database
 
             # Remove OTP from storage
             otp_storage.pop(username, None)
             session.pop("otp_user", None)
 
             # Auto-login after verification
-            session["username"] = username
+            login_user(user)
             flash("✅ Account verified successfully! Logged in.")
             return redirect(url_for("index"))
         else:
@@ -569,23 +599,21 @@ def forgot_password():
 
     if request.method == "POST":
         contact = request.form["contact"].strip()
-        users = load_users()
 
-        for username, info in users.items():
-            if contact == info.get("email") or contact == info.get("phone"):
-                otp = generate_otp()
+        # Try to find user by email or phone
+        user = User.query.filter((User.email == contact) | (User.phone == contact)).first()
 
-                # Save OTP temporarily
-                info["reset_otp"] = otp
-                users[username] = info
-                save_users(users)
+        if user:
+            otp = generate_otp()
 
-                session["reset_user"] = username
+            # Save OTP temporarily in memory (or you could add a reset_otp column to User if persistent)
+            otp_storage[user.username] = otp
+            session["reset_user"] = user.username
 
-                # 🔥 OTP ONLY IN TERMINAL
-                print(f"\n🔐 PASSWORD RESET OTP for {username}: {otp}\n")
+            # 🔥 OTP ONLY IN TERMINAL
+            print(f"\n🔐 PASSWORD RESET OTP for {user.username}: {otp}\n")
 
-                return redirect(url_for("reset_verify_otp"))
+            return redirect(url_for("reset_verify_otp"))
 
         error = "Account not found."
 
@@ -599,18 +627,21 @@ def reset_verify_otp():
     if not username:
         return redirect(url_for("login"))
 
-    users = load_users()
-    user = users.get(username)
+    # Get user from the database
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        flash("User not found. Please try again.")
+        return redirect(url_for("forgot_password"))
 
     if request.method == "POST":
         entered_otp = request.form["otp"].strip()
+        correct_otp = otp_storage.get(username)  # OTP stored in memory
 
-        if entered_otp != user.get("reset_otp"):
+        if entered_otp != correct_otp:
             error = "Invalid OTP."
         else:
-            user.pop("reset_otp", None)
-            users[username] = user
-            save_users(users)
+            # Remove OTP from storage after successful verification
+            otp_storage.pop(username, None)
 
             session["reset_verified"] = True
             return redirect(url_for("reset_password"))
@@ -623,9 +654,12 @@ def reset_password():
         return redirect(url_for("login"))
 
     username = session.get("reset_user")
-    users = load_users()
-    user = users.get(username)
+    user = User.query.filter_by(username=username).first()
     error = None
+
+    if not user:
+        flash("User not found. Please try again.")
+        return redirect(url_for("forgot_password"))
 
     if request.method == "POST":
         password = request.form["password"]
@@ -634,12 +668,11 @@ def reset_password():
         if password != confirm:
             error = "Passwords do not match."
         else:
-            user["password"] = generate_password_hash(password)
-            user.pop("reset_otp", None)
+            # Update password in the database
+            user.password_hash = generate_password_hash(password)
+            db.session.commit()
 
-            users[username] = user
-            save_users(users)
-
+            # Clear reset session flags
             session.pop("reset_user", None)
             session.pop("reset_verified", None)
 
@@ -647,7 +680,6 @@ def reset_password():
             return redirect(url_for("login"))
 
     return render_template("reset_password.html", error=error)
-
 
 # ---------- Fetch matches ----------
 API_TOKEN = os.getenv("FOOTBALL_API_KEY")

@@ -17,7 +17,7 @@
     <a href="{{ url_for('leaderboard') }}" class="nav-link">Leaderboard</a>
     <a href="{{ url_for('profile') }}" class="nav-link">Profile</a>
     <a href="{{ url_for('settings') }}" class="nav-link active">Settings</a>
-    <span class="nav-link">Hi, {{ session['username'] }}</span>
+    <span class="nav-link">Hi, {{ current_user.username }}</span>
     <a href="{{ url_for('logout') }}" class="nav-link">Logout</a>
   </nav>
 </header>
@@ -51,61 +51,68 @@
   </section>
 
   <!-- 🏦 BANKING SECTION -->
-<section class="container narrow">
-  <h2>Banking Details</h2>
+  <section class="container narrow">
+    <h2>Banking Details</h2>
 
-  <form method="POST" class="card form-card">
-    <input type="hidden" name="form_type" value="bank">
+    <form method="POST" class="card form-card">
+      <input type="hidden" name="form_type" value="bank">
 
-    <label>Account Holder Name</label>
-    <input class="input" name="bank_holder" value="{{ user.bank.account_holder }}" required>
+      <label>Account Holder Name</label>
+      <input class="input" name="bank_holder"
+             value="{{ current_user.bank.account_holder }}" required>
 
-    <label class="field-label">Bank Name</label>
-    <select name="bank_name" id="bank_name" class="input" required onchange="setBranchCode()">
-      <option value="">Select your bank</option>
-      <option value="ABSA">ABSA</option>
-      <option value="Capitec">Capitec</option>
-      <option value="FNB">First National Bank (FNB)</option>
-      <option value="Nedbank">Nedbank</option>
-      <option value="Standard Bank">Standard Bank</option>
-      <option value="TymeBank">TymeBank</option>
-      <option value="Discovery">Discovery Bank</option>
-      <option value="Bank Zero">Bank Zero</option>
-    </select>
+      <label class="field-label">Bank Name</label>
+      <select name="bank_name" id="bank_name" class="input" required onchange="setBranchCode()">
+        <option value="">Select your bank</option>
+        <option value="ABSA">ABSA</option>
+        <option value="Capitec">Capitec</option>
+        <option value="FNB">First National Bank (FNB)</option>
+        <option value="Nedbank">Nedbank</option>
+        <option value="Standard Bank">Standard Bank</option>
+        <option value="TymeBank">TymeBank</option>
+        <option value="Discovery">Discovery Bank</option>
+        <option value="Bank Zero">Bank Zero</option>
+      </select>
 
-    <label>Account Number</label>
-    <input class="input" name="account_number" value="{{ user.bank.account_number }}" required>
+      <label>Account Number</label>
+      <input class="input" name="account_number"
+             value="{{ current_user.bank.account_number }}" required>
 
-    <label class="field-label">Branch Code</label>
-    <input type="text" name="branch_code" id="branch_code" class="input" readonly placeholder="Auto-filled" required>
+      <label class="field-label">Branch Code</label>
+      <input type="text" name="branch_code" id="branch_code"
+             class="input" readonly placeholder="Auto-filled" required>
 
-    <label>Account Type</label>
-    <select class="input" name="account_type" required>
-      <option value="">Select</option>
-      <option value="Cheque" {% if user.bank.account_type == "Cheque" %}selected{% endif %}>Cheque</option>
-      <option value="Savings" {% if user.bank.account_type == "Savings" %}selected{% endif %}>Savings</option>
-      <option value="Business" {% if user.bank.account_type == "Business" %}selected{% endif %}>Business</option>
-    </select>
+      <label>Account Type</label>
+      <select class="input" name="account_type" required>
+        <option value="">Select</option>
+        <option value="Cheque" {% if current_user.bank.account_type == "Cheque" %}selected{% endif %}>Cheque</option>
+        <option value="Savings" {% if current_user.bank.account_type == "Savings" %}selected{% endif %}>Savings</option>
+        <option value="Business" {% if current_user.bank.account_type == "Business" %}selected{% endif %}>Business</option>
+      </select>
 
-    <button class="btn primary">Save Banking Details</button>
-  </form>
-</section>
+      <button class="btn primary">Save Banking Details</button>
+    </form>
+  </section>
 
-
-  <!-- ⚠️ ACCOUNT ACTIONS SECTION -->
+  <!-- ⚠️ ACCOUNT ACTIONS -->
   <section class="container narrow">
     <h2>Account Actions</h2>
     <div class="card form-card">
-      <p>If you want to deactivate or delete your account, please use the buttons below. <strong>Deleting</strong> is permanent.</p>
+      <p>
+        If you want to deactivate or delete your account, please use the buttons below.
+        <strong>Deleting</strong> is permanent.
+      </p>
 
       <form method="POST" action="{{ url_for('deactivate_account') }}" style="margin-bottom: 10px;">
-        <button class="btn warning" onclick="return confirm('Are you sure you want to deactivate your account?');">
+        <button class="btn warning"
+          onclick="return confirm('Are you sure you want to deactivate your account?');">
           Deactivate Account
         </button>
       </form>
 
       <form method="POST" action="{{ url_for('delete_account') }}">
-        <button class="btn danger" onclick="return confirm('Are you sure you want to permanently delete your account?');">
+        <button class="btn danger"
+          onclick="return confirm('Are you sure you want to permanently delete your account?');">
           Delete Account
         </button>
       </form>
@@ -134,14 +141,10 @@ function setBranchCode() {
   const bankSelect = document.getElementById("bank_name");
   const branchInput = document.getElementById("branch_code");
 
-  const selectedBank = bankSelect.value;
-  branchInput.value = bankCodes[selectedBank] || "";
+  branchInput.value = bankCodes[bankSelect.value] || "";
 }
 
-/* Auto-fill branch code on page load */
-window.addEventListener("DOMContentLoaded", () => {
-  setBranchCode();
-});
+window.addEventListener("DOMContentLoaded", setBranchCode);
 </script>
 
 </body>
