@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Help — GoPredict</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <!-- Main App CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body class="bg">
+  <header class="nav">
+    <div class="nav-left"><div class="logo">GoPredict</div></div>
+    <nav class="nav-right">
+      <a href="{{ url_for('index') }}" class="nav-link">Home</a>
+      <a href="{{ url_for('leaderboard') }}" class="nav-link">Leaderboard</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <section class="container narrow">
+      <h2>Help & FAQ</h2>
+
+      <h3>How do I make predictions?</h3>
+      <p>
+        Visit the Matches page, select the score you think will happen before kickoff, 
+        and submit your prediction. Points are awarded based on accuracy.
+      </p>
+
+      <h3>How is the leaderboard calculated?</h3>
+      <p>
+        Points are awarded for correct predictions. The leaderboard updates automatically 
+        as matches finish.
+      </p>
+
+      <h3>Can I edit my predictions?</h3>
+      <p>
+        Predictions can only be changed before the match starts. Once a match begins, 
+        submissions are locked.
+      </p>
+
+      <h3>Who can I contact for more help?</h3>
+      <p>
+        Use our <a href="{{ url_for('contact') }}">Contact Us</a> form below to send a message. 
+        Our support team will get back to you promptly.
+      </p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-content">
+        <a href="{{ url_for('about') }}">About</a>
+        <span>•</span>
+        <a href="{{ url_for('contact') }}">Contact Us</a>
+    </div>
+
+    <div class="footer-copy">
+        © {{ current_year }} GoPredict. All rights reserved.
+    </div>
+</footer>
+
+</body>
+</html>

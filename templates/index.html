@@ -67,7 +67,7 @@
     {% if matches %}
       {% set leagues = {} %}
       {% for match in matches %}
-        {% set league = match.get('league_name', 'Unknown League') %}
+        {% set league = match.league_name or 'Unknown League' %}
         {% if league not in leagues %}
           {% set leagues = leagues.update({league: []}) or leagues %}
         {% endif %}
@@ -79,32 +79,32 @@
           <h3 class="league-title">{{ league }}</h3>
           <div class="vertical-list">
             {% for match in league_matches %}
-              <a href="{% if match.status != 'LIVE' %}{{ url_for('match', match_id=match.global_index) }}{% else %}#{% endif %}"
+              <a href="{% if match.status != 'LIVE' %}{{ url_for('match', api_id=match.api_id) }}{% else %}#{% endif %}"
                  class="card match-card {% if match.status == 'LIVE' %}live-match{% endif %}">
 
                 <div class="match-row">
                   <div class="team left">
-                    <img class="team-logo" src="{{ match.get('home_logo', 'https://via.placeholder.com/64') }}">
+                    <img class="team-logo" src="{{ match.home_logo or 'https://via.placeholder.com/64' }}">
                     <div class="team-name">{{ match['home'] }}</div>
                   </div>
 
                   <div class="vs-block">
                     <div class="vs-text">VS</div>
                     <div class="match-time">
-                      {{ match['localDate'][:10] }} · {{ match['localDate'][11:16] }}
+                      {{ match.local_date.strftime('%Y-%m-%d') }} · {{ match.local_date.strftime('%H:%M') }}
                     </div>
                   </div>
 
                   <div class="team right">
-                    <img class="team-logo" src="{{ match.get('away_logo', 'https://via.placeholder.com/64') }}">
+                    <img class="team-logo" src="{{ match.away_logo or 'https://via.placeholder.com/64' }}">
                     <div class="team-name">{{ match['away'] }}</div>
                   </div>
                 </div>
 
                 <div class="card-footer">
-                  <div class="pred-count">{{ match.get('predictions_count', 0) }} Predictions</div>
+                  <div class="pred-count">{{ match.predictions_count }} Predictions</div>
                   {% if current_user.is_authenticated %}
-                    {% if match.status == 'LIVE' %}
+                    {% if match.status in ['IN_PLAY', 'PAUSED'] %}
                       <div class="cta small-muted">Live – Predictions Closed</div>
                     {% else %}
                       <div class="cta">Predict Now →</div>
@@ -124,10 +124,18 @@
   </section>
 </main>
 
-<footer class="footer">
-  <div>© 2025 GoPredict — Built with ⚽</div>
-  <div class="small-muted">Made with ❤️ for football fans</div>
-</footer>
+<footer class="site-footer">
+    <div class="footer-content">
+        <a href="{{ url_for('about') }}">About</a>
+        <span>•</span>
+        <a href="{{ url_for('help') }}">Help</a>
+        <span>•</span>
+        <a href="{{ url_for('contact') }}">Contact Us</a>
+    </div>
 
+    <div class="footer-copy">
+        © {{ current_year }} GoPredict. All rights reserved.
+    </div>
+</footer>
 </body>
 </html>

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>About — GoPredict</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <!-- Main App CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body class="bg">
+  <header class="nav">
+    <div class="nav-left"><div class="logo">GoPredict</div></div>
+    <nav class="nav-right">
+      <a href="{{ url_for('index') }}" class="nav-link">Home</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <section class="container narrow">
+      <!-- YOUR ABOUT CONTENT HERE -->
+       <h2>About GoPredict</h2>
+
+        <p>
+        GoPredict is an interactive football prediction platform built for fans who enjoy
+        testing their knowledge, intuition, and passion for the beautiful game.
+        </p>
+
+        <p>
+        Users predict match scores before kickoff and earn points based on prediction
+        accuracy. These points determine rankings on a live leaderboard, allowing users
+        to compete against other football enthusiasts in a fair and transparent way.
+        </p>
+
+        <p>
+        Our mission is to create an engaging and competitive environment that blends
+        strategy, excitement, and community — all powered by real match data and clear,
+        consistent scoring rules.
+        </p>
+
+        <p>
+        GoPredict is continuously evolving, with new features, competitions, and leagues
+        being introduced to improve the experience and keep the platform exciting for
+        every user.
+        </p>
+
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-content">
+        <a href="{{ url_for('help') }}">Help</a>
+        <span>•</span>
+        <a href="{{ url_for('contact') }}">Contact Us</a>
+    </div>
+
+    <div class="footer-copy">
+        © {{ current_year }} GoPredict. All rights reserved.
+    </div>
+</footer>
+</body>
+</html>

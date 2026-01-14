@@ -47,7 +47,9 @@
   <nav class="nav-right">
     <a href="{{ url_for('index') }}" class="nav-link">Home</a>
     <a href="{{ url_for('leaderboard') }}" class="nav-link">Leaderboard</a>
+    <a href="{{ url_for('profile') }}" class="nav-link active">Profile</a>
     <a href="{{ url_for('settings') }}" class="nav-link">Settings</a>
+    <span class="nav-link">Hi, {{ current_user.username }}</span>
     <a href="{{ url_for('logout') }}" class="nav-link">Logout</a>
   </nav>
 </header>
@@ -116,7 +118,7 @@
 </main>
 
 <footer class="footer">
-  <div>© 2025 GoPredict</div>
+  <div>© 2026 GoPredict</div>
 </footer>
 </body>
 </html>

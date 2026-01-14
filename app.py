@@ -2,10 +2,9 @@
 # Standard library imports
 # =========================
 import os
-import json
 import random
 from datetime import datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo 
 
 # =========================
 # Third-party libraries
@@ -24,6 +23,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 from flask_migrate import Migrate
+from flask import Flask
+from models import db
 
 # Flask-Login
 from flask_login import (
@@ -38,8 +39,6 @@ from flask_login import (
 # Local application imports
 # =========================
 from extensions import db, migrate
-from models import User, Match, Prediction
-
 
 
 load_dotenv()  # Load environment variables from .env
@@ -56,7 +55,10 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db.init_app(app)
 migrate.init_app(app, db)
 
-app.secret_key = "supersecretkey"  # Change this in production
+from models import User, Match, Prediction
+
+app.secret_key = os.getenv("SECRET_KEY", "dev-secret-key")
+
 
 login_manager = LoginManager()
 login_manager.login_view = "login"  # redirect users to this if not logged in
@@ -73,11 +75,6 @@ otp_storage = {}
 def generate_otp():
     return str(random.randint(100000, 999999))
 
-# ---------- File paths ----------
-MATCHES_FILE = "matches.json"
-PREDICTIONS_FILE = "predictions.json"
-USERS_FILE = "users.json"
-
 # ---------- Leagues to fetch ----------
 # (league_id, league_name)
 LEAGUES = [
@@ -93,101 +90,121 @@ LOCAL_TZ = "Africa/Johannesburg"
 
 # ---------- Helper functions ----------
 def load_matches():
-    if os.path.exists(MATCHES_FILE):
-        with open(MATCHES_FILE, "r") as f:
-            return json.load(f)
-    return []
+    matches = Match.query.all()
+
+    return [
+        {
+            "api_id": m.api_id,
+            "home": m.home,
+            "away": m.away,
+            "utcDate": m.utc_date,
+            "home_score": m.home_score,
+            "away_score": m.away_score,
+            "status": m.status,
+            "league_name": m.league_name,
+            "home_logo": m.home_logo,
+            "away_logo": m.away_logo,
+        }
+        for m in matches
+    ]
+
 
 def load_predictions():
-    if os.path.exists(PREDICTIONS_FILE):
-        with open(PREDICTIONS_FILE, "r") as f:
-            return json.load(f)
-    return {}
+    predictions = {}
+
+    user_predictions = Prediction.query.all()
+
+    for p in user_predictions:
+        username = p.user.username if hasattr(p.user, "username") else p.user_id
+
+        if username not in predictions:
+            predictions[username] = {}
+
+        predictions[username][str(p.match_id)] = {
+            "home": p.pred_home,
+            "away": p.pred_away,
+            "date": p.date.isoformat() if p.date else None
+        }
+
+    return predictions
 
 def save_predictions(predictions):
-    with open(PREDICTIONS_FILE, "w") as f:
-        json.dump(predictions, f, indent=4)
-
-# ---------- Authentication decorator ----------
-
+    # DB handles persistence automatically
+    db.session.commit()
 
 # ---------- Calculate points ----------
 def calculate_points():
-    matches = load_matches()
-    predictions = load_predictions()
     leaderboard = []
 
-    for username, user_preds in predictions.items():
-        total_points = 0
+    users = User.query.all()
 
-        for match_id_str, pred in user_preds.items():
-            match_id = int(match_id_str)
+    for user in users:
+        total = 0
 
-            if match_id >= len(matches):
+        for p in user.predictions:
+            if p.match.home_score is None or p.match.away_score is None:
                 continue
 
-            actual = matches[match_id]
-
-            if actual["home_score"] is None or actual["away_score"] is None:
-                continue
-
-            # Exact score = 5 points
             if (
-                pred["home"] == actual["home_score"]
-                and pred["away"] == actual["away_score"]
+                p.pred_home == p.match.home_score
+                and p.pred_away == p.match.away_score
             ):
-                total_points += 5
+                total += 5
+                p.points = 5
+            else:
+                p.points = 0
 
         leaderboard.append({
-            "username": username,
-            "points": total_points
+            "username": user.username,
+            "points": total,
+            "badge": "🏆" if total >= 1000 else ""
         })
 
+    db.session.commit()
     leaderboard.sort(key=lambda x: x["points"], reverse=True)
     return leaderboard
 
 # ---------- Routes ----------
 @app.route("/")
 def index():
-    matches = load_matches()
-    predictions = load_predictions()
+    matches = Match.query.all()  # load matches from DB
     now = datetime.now(ZoneInfo(LOCAL_TZ))
     today = now.date()
 
     today_matches = []
 
-    for i, match in enumerate(matches):
-        match_dt = datetime.fromisoformat(
-            match["utcDate"].replace("Z", "+00:00")
-        ).astimezone(ZoneInfo(LOCAL_TZ))
+    for match in matches:
+        if isinstance(match.utc_date, str):
+            match_dt = datetime.fromisoformat(
+                match.utc_date.replace("Z", "+00:00")
+            ).astimezone(ZoneInfo(LOCAL_TZ))
+        else:
+            match_dt = match.utc_date.astimezone(ZoneInfo(LOCAL_TZ))
 
-        status = match.get("status", "TIMED")
+        status = match.status or "TIMED"
 
         is_today = match_dt.date() == today
         is_live = status in ["IN_PLAY", "PAUSED"]
         is_finished = status in ["FT", "FINISHED", "AWARDED"]
 
-        # ❌ NEVER show yesterday or finished matches
+        # ❌ Skip yesterday or finished matches
         if match_dt.date() < today or is_finished:
             continue
 
-        # ✅ Show only today matches or live matches
+        # ✅ Show only today or live matches
         if is_today or is_live:
-            match["predictions_count"] = sum(
-                1 for user in predictions.values() if str(i) in user
-            )
-            match["localDate"] = match_dt.isoformat()
-            match["global_index"] = i
+            # Count predictions for this match from DB
+            match.predictions_count = Prediction.query.filter_by(match_id=match.id).count()
 
-            # 🔒 Lock if live
-            match["locked"] = is_live
+            match.local_date = match_dt
+            match.locked = is_live
 
             today_matches.append(match)
 
     # Group by league
     leagues_dict = {}
     for match in today_matches:
-        league = match.get("league_name", "Other")
+        league = match.league_name or "Other"
         leagues_dict.setdefault(league, []).append(match)
 
     league_order = [
@@ -292,23 +309,28 @@ def logout():
     return redirect(url_for("login"))
 
 
-@app.route("/match/<int:match_id>", methods=["GET", "POST"])
+@app.route("/match/<int:api_id>", methods=["GET", "POST"])
 @login_required
-def match(match_id):
-    matches = load_matches()
-    if match_id >= len(matches):
+def match(api_id):
+    match = Match.query.filter_by(api_id=api_id).first()
+    if not match:
         return "Match not found", 404
 
-    match = matches[match_id]
-    predictions = load_predictions()
-    username = current_user.username
 
-    submitted = str(match_id) in predictions.get(username, {})
+    submitted = Prediction.query.filter_by(
+        user_id=current_user.id,
+        match_id=match.id
+    ).first() is not None
 
-    # 🔒 Prevent predicting live matches
-    match_dt = datetime.fromisoformat(match["utcDate"].replace("Z", "+00:00")).astimezone(ZoneInfo(LOCAL_TZ))
-    status = match.get("status", "UPCOMING")
-    locked = status in ["IN_PLAY", "PAUSED"]
+    if isinstance(match.utc_date, str):
+        match_dt = datetime.fromisoformat(
+            match.utc_date.replace("Z", "+00:00")
+        ).astimezone(ZoneInfo(LOCAL_TZ))
+    else:
+        match_dt = match.utc_date.astimezone(ZoneInfo(LOCAL_TZ))
+
+    kickoff_time = match_dt.strftime("%H:%M")
+    locked = match.status in ["IN_PLAY", "PAUSED"]
 
     if request.method == "POST":
         if locked:
@@ -317,49 +339,39 @@ def match(match_id):
 
         if submitted:
             flash("⚠️ You already submitted a prediction for this match.")
-            return redirect(url_for("match", match_id=match_id))
+            return redirect(url_for("match", match_id=match.id))
 
         today = datetime.now(ZoneInfo(LOCAL_TZ)).date()
+        today_count = Prediction.query.filter(
+            Prediction.user_id == current_user.id,
+            Prediction.created_at >= datetime.combine(today, datetime.min.time()),
+            Prediction.created_at <= datetime.combine(today, datetime.max.time())
+        ).count()
 
-        # Ensure user predictions dict exists
-        if username not in predictions:
-            predictions[username] = {}
-
-        # Count today's predictions
-        today_predictions_count = 0
-        for match_key, pred in predictions[username].items():
-            if pred.get("date") == today.isoformat():
-                today_predictions_count += 1
-                continue
-            try:
-                idx = int(match_key)
-                match_dt2 = datetime.fromisoformat(
-                    matches[idx]["utcDate"].replace("Z", "+00:00")
-                ).astimezone(ZoneInfo(LOCAL_TZ))
-                if match_dt2.date() == today:
-                    today_predictions_count += 1
-            except:
-                pass
-
-        if today_predictions_count >= 10:
+        if today_count >= 10:
             flash("🚫 You can only predict 10 matches per day.")
             return redirect(url_for("index"))
 
-        home_score = int(request.form["home_score"])
-        away_score = int(request.form["away_score"])
+        prediction = Prediction(
+            user_id=current_user.id,
+            match_id=match.id,
+            pred_home=int(request.form["home_score"]),
+            pred_away=int(request.form["away_score"])
+        )
 
-        predictions[username][str(match_id)] = {
-            "home": home_score,
-            "away": away_score,
-            "date": today.isoformat()
-        }
+        db.session.add(prediction)
+        db.session.commit()
 
-        save_predictions(predictions)
         flash("✅ Prediction submitted successfully!")
         return redirect(url_for("index"))
 
-    return render_template("match.html", match=match, submitted=submitted, locked=locked)
-
+    return render_template(
+        "match.html",
+        match=match,
+        submitted=submitted,
+        locked=locked,
+        kickoff_time=kickoff_time
+    )
 
 @app.route("/leaderboard")
 @login_required
@@ -370,10 +382,15 @@ def leaderboard():
 @app.route("/profile")
 @login_required
 def profile():
-    user = current_user  # ✅ Use Flask-Login
-    
-    # Get all predictions for this user
-    db_predictions = Prediction.query.filter_by(user_id=user.id).all()
+    user = current_user  # ✅ Flask-Login
+
+    # Get predictions with matches via relationship
+    db_predictions = (
+        Prediction.query
+        .filter_by(user_id=user.id)
+        .join(Match)
+        .all()
+    )
 
     today = datetime.now(timezone.utc).date()
 
@@ -382,14 +399,21 @@ def profile():
     exact_scores = 0
 
     for pred in db_predictions:
-        match = Match.query.get(pred.match_id)
+        match = pred.match
         if not match:
             continue
 
-        # parse match date safely
-        match_date = match.utc_date.date() if match.utc_date else None
+        # ✅ Safely parse utc_date (stored as string)
+        match_date = None
+        if match.utc_date:
+            try:
+                match_date = datetime.fromisoformat(
+                    match.utc_date.replace("Z", "+00:00")
+                ).date()
+            except Exception:
+                pass
 
-        # Only include upcoming/live/today finished matches
+        # Only include relevant matches
         if match.status != "FINISHED" or match_date == today:
             points = 0
             outcome = "UPCOMING"
@@ -433,6 +457,7 @@ def profile():
         stats=stats,
         user_matches=user_matches
     )
+
 
 @app.route("/settings", methods=["GET", "POST"])
 @login_required
@@ -681,21 +706,57 @@ def reset_password():
 
     return render_template("reset_password.html", error=error)
 
+from datetime import datetime
+
+@app.context_processor
+def inject_year():
+    return {"current_year": datetime.now().year}
+
+
+@app.route("/about")
+def about():
+    return render_template("about.html")
+
+
+@app.route("/help")
+def help():
+    return render_template("help.html")
+
+
+@app.route("/contact", methods=["GET", "POST"])
+def contact():
+    if request.method == "POST":
+        name = request.form.get("name")
+        email = request.form.get("email")
+        message = request.form.get("message")
+
+        # For now: log message (later you can store in DB or email it)
+        print("📩 Contact message received")
+        print("Name:", name)
+        print("Email:", email)
+        print("Message:", message)
+
+        flash("Your message has been sent successfully.", "success")
+        return redirect(url_for("contact"))
+
+    return render_template("contact.html")
+
+
 # ---------- Fetch matches ----------
 API_TOKEN = os.getenv("FOOTBALL_API_KEY")
+
 
 def fetch_matches():
     headers = {"X-Auth-Token": API_TOKEN}
     today = datetime.now(ZoneInfo(LOCAL_TZ)).date()
 
-    # Load existing matches
-    if os.path.exists(MATCHES_FILE):
-        with open(MATCHES_FILE, "r") as f:
-            all_matches = json.load(f)
-    else:
-        all_matches = []
+    # Load existing matches FROM DB
+    all_matches = Match.query.all()
 
-    existing_keys = {(m["home"], m["away"], m["utcDate"]) for m in all_matches}
+    existing_keys = {
+        (m.home, m.away, m.utc_date)
+        for m in all_matches
+    }
 
     for league_id, league_name in LEAGUES:
         url = f"https://api.football-data.org/v4/competitions/{league_id}/matches?status=SCHEDULED"
@@ -706,7 +767,9 @@ def fetch_matches():
 
         data = response.json()
         for match in data.get("matches", []):
-            match_dt = datetime.fromisoformat(match["utcDate"].replace("Z", "+00:00")).astimezone(ZoneInfo(LOCAL_TZ))
+            match_dt = datetime.fromisoformat(
+                match["utcDate"].replace("Z", "+00:00")
+            ).astimezone(ZoneInfo(LOCAL_TZ))
             match_date = match_dt.date()
 
             # Only today’s matches
@@ -716,29 +779,33 @@ def fetch_matches():
 
                 key = (home_team["name"], away_team["name"], match["utcDate"])
                 if key in existing_keys:
-                    continue  # Skip if already in matches.json
+                    continue  # Skip if already in DB
 
-                all_matches.append({
-                    "home": home_team["name"],
-                    "away": away_team["name"],
-                    "utcDate": match["utcDate"],
-                    "home_score": None,
-                    "away_score": None,
-                    "status": "UPCOMING",
-                    "localDate": match_dt.isoformat(),
-                    "home_logo": home_team.get("crest", "https://via.placeholder.com/64"),
-                    "away_logo": away_team.get("crest", "https://via.placeholder.com/64"),
-                    "league_name": league_name
-                })
+                new_match = Match(
+                    api_id=match["id"],
+                    home=home_team["name"],
+                    away=away_team["name"],
+                    utc_date=match["utcDate"],
+                    home_score=None,
+                    away_score=None,
+                    status="UPCOMING",
+                    local_date=match_dt.isoformat(),
+                    home_logo=home_team.get("crest", "https://via.placeholder.com/64"),
+                    away_logo=away_team.get("crest", "https://via.placeholder.com/64"),
+                    league_name=league_name
+                )
 
-    with open(MATCHES_FILE, "w") as f:
-        json.dump(all_matches, f, indent=4)
-    print(f"✅ Matches fetched and updated: {len(all_matches)}")
-    return all_matches
+                db.session.add(new_match)
+
+    db.session.commit()
+
+    print(f"✅ Matches fetched and updated: {Match.query.count()}")
+    return Match.query.all()
+
 
 # ---------- Auto-update matches ----------
 def update_match_results():
-    matches = load_matches()
+    matches = Match.query.all()
     headers = {"X-Auth-Token": API_TOKEN}
 
     for league_id, _ in LEAGUES:
@@ -750,10 +817,15 @@ def update_match_results():
             for match_data in data.get("matches", []):
                 utc_date = match_data["utcDate"]
                 for match in matches:
-                    if match["utcDate"] == utc_date:
-                        match["home_score"] = match_data["score"]["fullTime"]["home"]
-                        match["away_score"] = match_data["score"]["fullTime"]["away"]
-                        match["outcome"] = "WIN" if match.get("pred_home") == match["home_score"] and match.get("pred_away") == match["away_score"] else "LOSE"
+                    if match.utcDate == utc_date:
+                        match.home_score = match_data["score"]["fullTime"]["home"]
+                        match.away_score = match_data["score"]["fullTime"]["away"]
+                        match.outcome = (
+                            "WIN"
+                            if getattr(match, "pred_home", None) == match.home_score
+                            and getattr(match, "pred_away", None) == match.away_score
+                            else "LOSE"
+                        )
 
         # Fetch live matches
         url_live = f"https://api.football-data.org/v4/competitions/{league_id}/matches?status=LIVE"
@@ -763,19 +835,17 @@ def update_match_results():
             for match_data in data.get("matches", []):
                 utc_date = match_data["utcDate"]
                 for match in matches:
-                    if match["utcDate"] == utc_date:
-                        match["home_score"] = match_data["score"]["live"]["home"]
-                        match["away_score"] = match_data["score"]["live"]["away"]
-                        match["outcome"] = "LIVE"
+                    if match.utcDate == utc_date:
+                        match.home_score = match_data["score"]["live"]["home"]
+                        match.away_score = match_data["score"]["live"]["away"]
+                        match.outcome = "LIVE"
 
-    with open(MATCHES_FILE, "w") as f:
-        json.dump(matches, f, indent=4)
+    db.session.commit()
 
     print("✅ Match results updated automatically (including live matches).")
 
 def save_matches(matches):
-    with open(MATCHES_FILE, "w") as f:
-        json.dump(matches, f, indent=4)
+    db.session.commit()
 
 def update_scores(matches):
     headers = {"X-Auth-Token": API_TOKEN}
@@ -888,13 +958,42 @@ def reset_leaderboard():
 
 # ---------- Scheduler ----------
 scheduler = BackgroundScheduler()
-scheduler.add_job(lambda: update_scores(load_matches()), 'interval', minutes=5)
-scheduler.add_job(fetch_matches, 'interval', minutes=10)         # fetch new today matches every 10 min
-scheduler.add_job(reset_leaderboard, 'cron', day_of_week='mon', hour=0)
+
+# 🔄 Fetch matches (fixtures + scores)
+def scheduled_fetch_matches():
+    with app.app_context():
+        fetch_matches()  # DB upsert via API-Football
+
+# 🧹 Weekly leaderboard reset
+def scheduled_reset_leaderboard():
+    with app.app_context():
+        reset_leaderboard()
+
+# 🕒 Fetch today fixtures + scores every 2 hours
+scheduler.add_job(
+    scheduled_fetch_matches,
+    trigger="interval",
+    hours=2,
+    id="fetch_matches_job",
+    replace_existing=True
+)
+
+# 📅 Reset leaderboard weekly
+scheduler.add_job(
+    scheduled_reset_leaderboard,
+    trigger="cron",
+    day_of_week="mon",
+    hour=0,
+    id="reset_leaderboard_job",
+    replace_existing=True
+)
+
 scheduler.start()
 
-# ---------- Fetch today matches immediately at startup ----------
-fetch_matches()  # ensures homepage has data on app start
+# ---------- Fetch today matches once on startup ----------
+with app.app_context():
+    db.create_all()
+    fetch_matches()
 
 
 # ---------- Run ----------

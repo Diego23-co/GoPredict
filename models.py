@@ -19,9 +19,11 @@ class User(db.Model, UserMixin):
 
 class Match(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    api_id = db.Column(db.Integer, unique=True, nullable=False)
     home = db.Column(db.String(120), nullable=False)
     away = db.Column(db.String(120), nullable=False)
     utc_date = db.Column(db.String(50), nullable=False)
+    local_date = db.Column(db.String(50))
 
     home_score = db.Column(db.Integer, nullable=True)
     away_score = db.Column(db.Integer, nullable=True)
@@ -31,6 +33,8 @@ class Match(db.Model):
 
     home_logo = db.Column(db.String(255))
     away_logo = db.Column(db.String(255))
+
+
 
 
 class Prediction(db.Model):
@@ -45,3 +49,7 @@ class Prediction(db.Model):
     points = db.Column(db.Integer, default=0)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship("User", backref="predictions")
+    match = db.relationship("Match", backref="predictions")
+

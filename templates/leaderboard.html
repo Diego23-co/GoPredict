@@ -16,15 +16,11 @@
 
     <nav class="nav-right">
       <a href="{{ url_for('index') }}" class="nav-link">Home</a>
-
-      {% if session.get("username") %}
-        <a href="{{ url_for('leaderboard') }}" class="nav-link active">Leaderboard</a>
-        <a href="{{ url_for('profile') }}" class="nav-link">Profile</a>
-        <a href="{{ url_for('logout') }}" class="nav-link">Logout</a>
-      {% else %}
-        <a href="{{ url_for('login') }}" class="nav-link">Login</a>
-        <a href="{{ url_for('register') }}" class="nav-link">Register</a>
-      {% endif %}
+      <a href="{{ url_for('leaderboard') }}" class="nav-link active">Leaderboard</a>
+      <a href="{{ url_for('profile') }}" class="nav-link">Profile</a>
+      <a href="{{ url_for('settings') }}" class="nav-link">Settings</a>
+      <span class="nav-link">Hi, {{ current_user.username }}</span>
+      <a href="{{ url_for('logout') }}" class="nav-link">Logout</a>
     </nav>
   </header>
 
@@ -81,7 +77,7 @@
   </main>
 
   <footer class="footer small">
-    © 2025 GoPredict
+    © 2026 GoPredict
   </footer>
 
 </body>

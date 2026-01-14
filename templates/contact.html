@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>About — GoPredict</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <!-- Main App CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body class="bg">
+  <header class="nav">
+    <div class="nav-left"><div class="logo">GoPredict</div></div>
+    <nav class="nav-right">
+      <a href="{{ url_for('index') }}" class="nav-link">Home</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <section class="container narrow">
+      <!-- YOUR ABOUT CONTENT HERE -->
+        <h2>Contact Us</h2>
+
+        <p>
+        Have a question, suggestion, or issue? Send us a message using the form below.
+        We’ll get back to you as soon as possible.
+        </p>
+
+        <form method="POST" action="{{ url_for('contact') }}" class="contact-form">
+            <label>Your Name</label>
+            <input type="text" name="name" required>
+
+            <label>Your Email</label>
+            <input type="email" name="email" required>
+
+            <label>Message</label>
+            <textarea name="message" rows="5" required></textarea>
+
+            <button type="submit">Send Message</button>
+        </form>
+
+    </section>
+  </main>
+
+<footer class="site-footer">
+    <div class="footer-content">
+        <a href="{{ url_for('about') }}">About</a>
+        <span>•</span>
+        <a href="{{ url_for('help') }}">Help</a>
+    </div>
+
+    <div class="footer-copy">
+        © {{ current_year }} GoPredict. All rights reserved.
+    </div>
+</footer>
+
+
+</body>
+</html>

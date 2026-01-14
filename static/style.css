@@ -275,3 +275,177 @@ select.input option {
   background-color: #0f172a;
   color: #e5e7eb;
 }
+
+.site-footer {
+    margin-top: 60px;
+    padding: 20px 10px;
+    background-color: #0f172a;
+    color: #cbd5f5;
+    text-align: center;
+    font-size: 14px;
+}
+
+.site-footer a {
+    color: #38bdf8;
+    text-decoration: none;
+    margin: 0 6px;
+}
+
+.site-footer a:hover {
+    text-decoration: underline;
+}
+
+.footer-content {
+    margin-bottom: 8px;
+}
+
+.footer-copy {
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+/* ---------- Info Pages (About / Help / Contact) ---------- */
+
+.info-page {
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+.info-page h2 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+}
+
+.info-page h4 {
+    margin-top: 24px;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.info-page p {
+    line-height: 1.6;
+    margin-bottom: 14px;
+    color: #e5e7eb;
+}
+
+.info-page ul {
+    padding-left: 18px;
+    margin-bottom: 16px;
+}
+
+.info-page li {
+    margin-bottom: 6px;
+    color: #e5e7eb;
+}
+
+.card {
+    background: rgba(15, 23, 42, 0.9);
+    border-radius: 12px;
+    padding: 22px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+}
+
+/*************************************************
+/* ============================
+   CONTACT PAGE – CLEAN & COMPACT
+   ============================ */
+
+.contact-page {
+    min-height: 100vh;
+    padding: 2.5rem 1rem;
+    background-color: var(--app-bg, #f5f7fb);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+}
+
+.contact-card {
+    width: 100%;
+    max-width: 520px;
+    background-color: #ffffff;
+    border-radius: 12px;
+    padding: 2rem 2.2rem;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+}
+
+/* Title */
+.contact-card h2 {
+    text-align: center;
+    margin-bottom: 0.4rem;
+    font-size: 1.6rem;
+    color: #0f172a;
+}
+
+/* Subtitle */
+.contact-card p {
+    text-align: center;
+    margin-bottom: 1.6rem;
+    color: #64748b;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+/* Labels */
+.contact-form label {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #94a3b8;
+}
+
+/* Inputs */
+.contact-form input,
+.contact-form textarea {
+    width: 100%;
+    padding: 9px 12px;
+    margin-bottom: 1.2rem;
+    border-radius: 8px;
+    border: 1px solid #cbd5e1;
+    font-size: 0.9rem;
+    background-color: #ffffff;
+    color: #0f172a;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Focus */
+.contact-form input:focus,
+.contact-form textarea:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+/* Textarea */
+.contact-form textarea {
+    min-height: 110px;
+    resize: vertical;
+}
+
+/* Button */
+.contact-form button {
+    width: 100%;
+    padding: 10px;
+    border-radius: 10px;
+    border: none;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    color: #ffffff;
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Hover */
+.contact-form button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(37, 99, 235, 0.25);
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+    .contact-card {
+        padding: 1.8rem 1.6rem;
+    }
+}
