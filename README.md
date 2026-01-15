@@ -1,122 +1,177 @@
-\# GoPredict ⚽
-
-
-
-GoPredict is a football match prediction web application built with Flask.  
-
-Users can predict daily football match scores, earn points for correct predictions, track their prediction history, and compete on a leaderboard.
-
-
-
+# GoPredict
 ---
 
-
-
-\## 🚀 Features
-
-
-
-\- User registration and login system
-
-\- Daily football match predictions (maximum 10 predictions per day)
-
-\- Automatic fetching of matches from Football-Data.org API
-
-\- Live match score updates
-
-\- Automatic result updates and point calculation
-
-\- User profile with prediction history by date
-
-\- Global leaderboard ranking users by total points
-
-\- Secure password hashing
-
-\- Automatic background updates using a scheduler
-
-
-
+### Predict • Compete • Win 
+---
+## Description
 ---
 
+GoPredict is a football match prediction web application built with Flask and SQLAlchemy.
+Users can predict match scores, compete on daily leaderboards, and track their performance over time.
 
-
-\## 🛠 Tech Stack
-
-
-
-\### Backend
-
-\- Python
-
-\- Flask
-
-\- APScheduler
-
-
-
-\### Frontend
-
-\- HTML
-
-\- CSS
-
-\- Jinja2 Templates
-
-
-
-\### API
-
-\- Football-Data.org API
-
-
-
-\### Storage
-
-\- JSON files (users, matches, predictions)
-
-
-
+## Features
 ---
 
+### User Authentication
 
+- Register, login, logout
 
-\## ⚙️ How It Works
+-Secure session handling
 
+### Match Predictions
 
+- Predict scores for upcoming matches
 
-1\. The app fetches daily football matches from the Football-Data.org API.
+- One prediction per match per user
 
-2\. Matches are stored locally in a JSON file.
+### Daily Limits
 
-3\. Users register and log in securely.
+- Maximum of 10 predictions per day
 
-4\. Logged-in users submit score predictions for matches.
+### Live Match Protection
 
-5\. Live and finished match results are automatically updated in the background.
+- Predictions automatically lock once a match goes live
 
-6\. Points are awarded for correct score predictions.
+### Points System
 
-7\. Users can view their performance and history on their profile page.
+- Earn points for correct predictions
 
-8\. A leaderboard ranks all users based on total points.
+### Leaderboard
 
+- Rank users based on total points
 
+### Profile Dashboard
 
+- View predictions, results, and stats
+
+### Automated Match Updates
+
+- Match data synced from the Football-Data API
+
+### Responsive UI
+
+- Clean, modern interface using HTML, CSS, and Jinja2
+
+## 🛠 Tech Stack
 ---
 
+- **Backend**: Python, Flask
 
+- **Database**: SQLAlchemy (SQLite by default)
 
-\## ▶️ Run Locally
+- **Frontend**: HTML, CSS, Jinja2
 
+- **Authentication**: Flask-Login
 
+- **Migrations**: Flask-Migrate
 
-\### 1. Clone the repository
+- **External API**: Football-Data.org
 
+## Installation & Setup
+---
+
+1. Clone the repository:
 ```bash
-
-git clone https://github.com/YOUR\_USERNAME/GoPredict.git
-
+git clone https://github.com/<your-username>/GoPredict.git
 cd GoPredict
+```
+
+2. Create and activate a virtual environment:
+```bash
+    python -m venv venv
+```
+**Windows**
+```bash
+venv\Scripts\activate
+```
+**Linux/MacOs**
+```bash
+source venv/bin/activate
+```
+
+3. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+4. Environment variables:
+```bash
+SECRET_KEY=your_secure_random_string
+FOOTBALL_API_KEY=your_football_data_api_key
+LOCAL_TZ=Africa/Johannesburg
+```
+
+5. Run database migrations:
+```bash
+flask db upgrade
+```
+
+6. Run the application:
+```bash
+flask run
+```
+Open your browser at:
+http://127.0.0.1:5000
+
+## Security Best Practice
+---
+
+- **Secrets are stored in** .env
+
+- **Database files are not committed**
+
+- **API keys are never pushed to GitHub**
+
+- Uses **Flask-Login** for secure authentication
+
+## Deployment
+---
+
+**GoPredict can be deployed on platforms such as**:
+
+- Render
+
+- Heroku
+
+- Railway
+
+- Any Linux VPS
+
+**Steps**:
+
+1. Set environment variables on the platform
+
+2. Run database migrations
+
+3. Start the app using Gunicorn
+
+## Future Improvements
+---
+
+- Email notifications
+
+- Multi-league support
+
+- Match history analytics
+
+- Social leaderboards
+
+- Admin dashboard
+
+## License
+---
+
+This project is open-source and free to use for educational and personal projects.
+
+## Author
+---
+
+**GoPredict** — Built with passion for football and software engineering ⚽💻
+
+
+
+
+
 
 
 
